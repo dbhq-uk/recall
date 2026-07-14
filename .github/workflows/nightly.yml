@@ -1,0 +1,64 @@
+name: Nightly
+
+on:
+  schedule:
+    # 03:17 UTC, daily. An off-the-hour time on purpose, so this run does not
+    # land in the same minute as every other project's midnight cron.
+    - cron: "17 3 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  UV_LOCKED: "1"
+  OLLAMA_MODEL: nomic-embed-text
+  # CI sets this. There is currently no skip guard on the @pytest.mark.ollama
+  # tests to require — they call Ollama directly and fail naturally if it is
+  # unreachable, which is already the honest, non-skipping behaviour this repo
+  # insists on. This variable is set anyway, for the same reason as
+  # RECALL_REQUIRE_POSTGRES: if a skip guard is ever added to the ollama tests
+  # (mirroring tests/conftest.py's requires_postgres), it should read this
+  # variable from day one rather than silently skipping in CI.
+  RECALL_REQUIRE_OLLAMA: "1"
+
+jobs:
+  ollama-tests:
+    name: ollama tests (real embeddings)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --locked
+
+      - name: Install Ollama
+        run: curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Cache the Ollama model
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: ollama-models-${{ env.OLLAMA_MODEL }}
+
+      - name: Start Ollama
+        run: |
+          ollama serve &
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:11434/api/version && break
+            sleep 1
+          done
+
+      - name: Pull ${{ env.OLLAMA_MODEL }}
+        run: ollama pull "$OLLAMA_MODEL"
+
+      - run: uv run pytest -m ollama
+
+      # TODO(eval-harness): eval/harness.py does not exist yet — it is a later
+      # task (see CLAUDE.md "Testing": golden queries are the only number that
+      # matters). Once it exists, add a step here that runs it against the
+      # golden set with a real Ollama embedder and real Postgres, and surfaces
+      # dense-only / lexical-only / hybrid numbers side by side in the job
+      # summary. Do not stub it out before it exists.

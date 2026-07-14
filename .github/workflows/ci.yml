@@ -1,0 +1,185 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_LOCKED: "1"
+
+jobs:
+  lint:
+    name: lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  typecheck:
+    name: typecheck (mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run mypy src/recall
+
+  test-fast:
+    name: test-fast (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # requires-python is ">=3.12", and the walker deliberately avoids a
+        # 3.13-only API — both must stay green, not just whichever we happen
+        # to develop on.
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run pytest -m "not integration and not ollama"
+
+  test-integration-bm25:
+    name: test-integration (real BM25, ParadeDB)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # Ships pg_search AND pgvector, with pg_search already wired into
+        # shared_preload_libraries — this is what proves the real BM25 path.
+        image: paradedb/paradedb:latest
+        env:
+          POSTGRES_USER: recall
+          POSTGRES_DB: recall_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U recall -d recall_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      RECALL_TEST_DATABASE_URL: postgresql://recall@localhost:5432/recall_test
+      RECALL_REQUIRE_POSTGRES: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --locked
+
+      # Fail fast and specifically, rather than let a misconfigured service
+      # container surface as confusing test failures thirty tests deep.
+      - name: Verify pg_search is genuinely preloaded and creatable
+        run: |
+          uv run python - <<'PY'
+          import psycopg
+
+          with psycopg.connect("postgresql://recall@localhost:5432/recall_test") as conn:
+              with conn.cursor() as cur:
+                  cur.execute("SHOW shared_preload_libraries")
+                  preload = cur.fetchone()[0]
+                  print(f"shared_preload_libraries = {preload!r}")
+                  assert "pg_search" in preload, (
+                      "pg_search is not in shared_preload_libraries — the ParadeDB "
+                      "image is not configured the way this job assumes."
+                  )
+                  cur.execute("CREATE EXTENSION IF NOT EXISTS pg_search")
+                  cur.execute("SELECT extname FROM pg_extension WHERE extname = 'pg_search'")
+                  assert cur.fetchone() is not None, "pg_search failed to CREATE EXTENSION"
+              conn.commit()
+          print("pg_search verified live on this service container.")
+          PY
+
+      - run: uv run pytest -m "integration and not ollama"
+
+  test-integration-fallback:
+    name: test-integration (honest ts_rank_cd fallback, plain pgvector)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # Deliberately does NOT ship pg_search — proves the ts_rank_cd fallback
+        # against a server where the extension is genuinely absent, not merely
+        # simulated with pg_search_enabled=False against a server that has it.
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: recall
+          POSTGRES_DB: recall_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U recall -d recall_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      RECALL_TEST_DATABASE_URL: postgresql://recall@localhost:5432/recall_test
+      RECALL_REQUIRE_POSTGRES: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --locked
+
+      - name: Verify pg_search is genuinely absent on this image
+        run: |
+          uv run python - <<'PY'
+          import psycopg
+
+          with psycopg.connect("postgresql://recall@localhost:5432/recall_test") as conn:
+              with conn.cursor() as cur:
+                  cur.execute(
+                      "SELECT EXISTS "
+                      "(SELECT 1 FROM pg_available_extensions WHERE name = 'pg_search')"
+                  )
+                  available = cur.fetchone()[0]
+          assert not available, (
+              "pg_search is unexpectedly available on the pgvector/pgvector:pg16 "
+              "image — this job no longer proves a genuine fallback, only a "
+              "simulated one."
+          )
+          print("Confirmed: pg_search is genuinely absent on this service container.")
+          PY
+
+      # requires_pg_search-marked tests (the ones that exercise the real BM25
+      # index) correctly skip here. Everything else — in particular every
+      # ts_rank_cd fallback test — must genuinely run.
+      - run: uv run pytest -m "integration and not ollama"
+
+  build:
+    name: build (uv build + uvx smoke test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv build
+      - name: uvx-installable smoke test
+        run: |
+          uvx --from dist/*.whl recall --help
