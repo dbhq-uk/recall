@@ -49,6 +49,25 @@ def test_imports_and_module_level_code_are_not_lost():
     assert any("CONSTANT = 42" in c.content for c in chunks)
 
 
+def test_stray_closing_brace_is_not_its_own_chunk_but_short_imports_survive():
+    """A gap that is pure punctuation (a lone `}` after the last method) must not
+    become a chunk. But a short real gap (imports, constants) must be kept — this
+    is the exact tradeoff a naive length filter got wrong."""
+    src = '''import os from "os";
+
+class Widget {
+    build() {
+        return 1;
+    }
+}
+'''
+    chunks = chunk_code(src, lang="typescript", source="r", rel_path="a.ts", file_sha="s")
+    # No chunk is a bare brace / punctuation-only.
+    assert not any(set(c.content.strip()) <= set("}{;) \n\t") for c in chunks if c.content.strip())
+    # The import survived.
+    assert any("import os" in c.content for c in chunks)
+
+
 def test_typescript_functions_are_found():
     src = "export function greet(name: string): string {\n  return `hi ${name}`;\n}\n"
     chunks = chunk_code(src, lang="typescript", source="r", rel_path="a.ts", file_sha="s")

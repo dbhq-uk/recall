@@ -116,6 +116,11 @@ def chunk_code(
         body = "\n".join(lines[piece.start : piece.end + 1]).strip()
         if not body:
             continue
+        # A gap chunk (no symbol) that is pure punctuation — a lone `}`, `);`,
+        # a blank line — is not worth an embedding. But keep gaps with real
+        # content (imports, module constants): those must not be lost.
+        if piece.name is None and not any(ch.isalnum() for ch in body):
+            continue
 
         for part in _window_if_oversized(body):
             chunks.append(
