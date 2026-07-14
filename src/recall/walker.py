@@ -35,7 +35,8 @@ def sha256_file(path: Path) -> str:
 def _is_text(path: Path) -> bool:
     """Cheap binary sniff: a NUL byte in the first 8 KiB means it is not text."""
     try:
-        head = path.open("rb").read(8192)
+        with path.open("rb") as fh:
+            head = fh.read(8192)
     except OSError:
         return False
     return b"\x00" not in head
