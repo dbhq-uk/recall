@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 256" width="720" height="256" role="img" aria-label="recall">
+<g transform="translate(-8,0)"><g fill="none" stroke="#46566E" stroke-width="11.0" stroke-linejoin="round"><polygon points="128.0,58.0 198.0,128.0 128.0,198.0 58.0,128.0"/><polygon points="128.0,83.0 173.0,128.0 128.0,173.0 83.0,128.0"/></g><polygon points="128.0,107.0 149.0,128.0 128.0,149.0 107.0,128.0" fill="#2E9BFF"/><polygon points="128.0,119.0 137.0,128.0 128.0,137.0 119.0,128.0" fill="#EAF4FF"/></g>
+<text x="258" y="170" font-family="Inter, ui-sans-serif, -apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="152" font-weight="640" letter-spacing="-7" fill="#161D28">recall</text>
+<circle cx="690" cy="150" r="11" fill="#2E9BFF"/>
+</svg>
