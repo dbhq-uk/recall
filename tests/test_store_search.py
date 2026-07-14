@@ -257,3 +257,102 @@ def test_hits_carry_the_context_so_results_display_without_reparsing(store_facto
     r = store.search(qvec=vec(1, 0, 0), qtext="pop-top", sources=["brain"], limit=10, k=60)
     assert r.hits[0].context == "Areas > Travel > Van"
     assert r.hits[0].chunk_id == "brain:van.md:0"
+
+
+# --- eval-support: the unfused halves, for eval/harness.py -------------------
+#
+# These exist so the golden-query harness can score each arm against its own
+# true top-limit ranking rather than deriving a baseline by re-sorting the
+# fused pool (biased: the fused result only contains docs that survived
+# fusion). Not part of the Store protocol used at request time.
+
+
+def test_search_dense_only_returns_the_true_top_by_cosine_distance(store_factory, corpus):
+    store = corpus(store_factory(dim=DIM, pg_search_enabled=False))
+    ranking = store.search_dense_only(qvec=vec(1, 0, 0), sources=["brain"], limit=10)
+    assert isinstance(ranking, list)
+    assert all(isinstance(p, str) for p in ranking)
+    assert ranking[0] == "van.md"
+    assert len(ranking) == 4  # every chunk in the corpus, just ordered by distance
+
+
+def test_search_dense_only_respects_limit(store_factory, corpus):
+    store = corpus(store_factory(dim=DIM, pg_search_enabled=False))
+    ranking = store.search_dense_only(qvec=vec(1, 0, 0), sources=["brain"], limit=2)
+    assert len(ranking) == 2
+    assert ranking[0] == "van.md"
+
+
+def test_search_dense_only_is_siloed(store_factory):
+    store = store_factory(dim=DIM)
+    store.upsert(
+        [
+            mk("a.md", "shared word here", vec(1, 0, 0), source="brain"),
+            mk("b.md", "shared word here", vec(1, 0, 0), source="dbhq"),
+        ]
+    )
+    ranking = store.search_dense_only(qvec=vec(1, 0, 0), sources=["brain"], limit=10)
+    assert ranking == ["a.md"]
+
+
+def test_search_dense_only_on_no_resolved_sources_returns_empty_list(store_factory):
+    store = store_factory(dim=DIM)
+    assert store.search_dense_only(qvec=vec(1, 0, 0), sources=[], limit=10) == []
+
+
+@requires_pg_search
+def test_search_lexical_only_matches_the_live_ranker_REAL_BM25(store_factory, corpus):
+    store = corpus(store_factory(dim=DIM, pg_search_enabled=True))
+    assert store.lexical_ranker() == "bm25"
+    ranking = store.search_lexical_only(qtext="pop-top roof", sources=["brain"], limit=10)
+    assert ranking[0] == "van.md"
+    # only docs the ranker actually matched come back, not the whole corpus
+    assert "fusion.md" not in ranking
+
+
+def test_search_lexical_only_matches_the_live_ranker_TS_RANK_CD_FALLBACK(store_factory, corpus):
+    store = corpus(store_factory(dim=DIM, pg_search_enabled=False))
+    assert store.lexical_ranker() == "ts_rank_cd"
+    ranking = store.search_lexical_only(qtext="pop-top roof", sources=["brain"], limit=10)
+    assert ranking[0] == "van.md"
+    assert "fusion.md" not in ranking
+
+
+def test_search_lexical_only_respects_limit(store_factory):
+    store = store_factory(dim=DIM, pg_search_enabled=False)
+    store.upsert([mk(f"{i}.md", f"shared word {i}", vec(1, 0, 0), idx=i) for i in range(5)])
+    ranking = store.search_lexical_only(qtext="shared word", sources=["brain"], limit=3)
+    assert len(ranking) == 3
+
+
+def test_search_lexical_only_is_siloed(store_factory):
+    store = store_factory(dim=DIM, pg_search_enabled=False)
+    store.upsert(
+        [
+            mk("a.md", "shared word here", vec(1, 0, 0), source="brain"),
+            mk("b.md", "shared word here", vec(1, 0, 0), source="dbhq"),
+        ]
+    )
+    ranking = store.search_lexical_only(qtext="shared word", sources=["brain"], limit=10)
+    assert ranking == ["a.md"]
+
+
+def test_search_lexical_only_on_no_resolved_sources_returns_empty_list(store_factory):
+    store = store_factory(dim=DIM)
+    assert store.search_lexical_only(qtext="anything", sources=[], limit=10) == []
+
+
+@requires_pg_search
+def test_search_lexical_only_DOES_NOT_EXPLODE_ON_A_COLON_under_bm25(store_factory, corpus):
+    """Same regression this product's fusion query already guards: bare `@@@`
+    parses user text as pg_search's query DSL and raises on a colon.
+    search_lexical_only must go through paradedb.match, same as fusion does."""
+    store = corpus(store_factory(dim=DIM, pg_search_enabled=True))
+    ranking = store.search_lexical_only(qtext="how do I use foo: bar", sources=["brain"], limit=10)
+    assert isinstance(ranking, list)  # did not raise
+
+
+def test_search_lexical_only_with_no_hits_returns_empty_list(store_factory, corpus):
+    store = corpus(store_factory(dim=DIM, pg_search_enabled=False))
+    ranking = store.search_lexical_only(qtext="zzzznotawordanywhere", sources=["brain"], limit=10)
+    assert ranking == []

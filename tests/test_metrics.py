@@ -85,6 +85,7 @@ def test_harness_report_shape():
     r = Report(
         lexical_ranker="bm25",
         k=60,
+        limit=10,
         arms={
             "dense": ArmScore(recall_at_10=0.5, mrr=0.4, n=40),
             "lexical": ArmScore(recall_at_10=0.6, mrr=0.5, n=40),
@@ -102,6 +103,7 @@ def test_harness_says_so_when_fusion_is_NOT_earning_its_keep():
     r = Report(
         lexical_ranker="bm25",
         k=60,
+        limit=10,
         arms={
             "dense": ArmScore(recall_at_10=0.9, mrr=0.8, n=40),
             "lexical": ArmScore(recall_at_10=0.6, mrr=0.5, n=40),
@@ -110,3 +112,91 @@ def test_harness_says_so_when_fusion_is_NOT_earning_its_keep():
         by_kind={},
     )
     assert r.fusion_is_earning_its_keep is False
+
+
+def test_harness_does_NOT_declare_victory_when_a_kind_is_losing_under_a_winning_aggregate():
+    """Pin the exact bug this task fixes: a winning aggregate can hide a kind
+    that hybrid actually loses on. The verdict — and the printed summary — must
+    surface that, rather than a blanket 'RRF is earning its keep'."""
+    from eval.harness import ArmScore, Report
+
+    def s(recall: float, m: float) -> ArmScore:
+        return ArmScore(recall_at_10=recall, mrr=m, n=10)
+
+    r = Report(
+        lexical_ranker="bm25",
+        k=60,
+        limit=10,
+        arms={
+            "dense": s(0.80, 0.70),
+            "lexical": s(0.70, 0.60),
+            "hybrid": s(0.85, 0.75),  # aggregate: hybrid beats BOTH halves
+        },
+        by_kind={
+            "semantic": {
+                "dense": s(0.95, 0.86),
+                "lexical": s(0.50, 0.40),
+                "hybrid": s(0.90, 0.80),  # hybrid LOSES to dense-only here
+            },
+            "lexical": {
+                "dense": s(0.60, 0.50),
+                "lexical": s(0.90, 0.80),
+                "hybrid": s(0.95, 0.85),
+            },
+            "hybrid": {
+                "dense": s(0.80, 0.70),
+                "lexical": s(0.70, 0.60),
+                "hybrid": s(0.90, 0.80),
+            },
+        },
+    )
+
+    assert r.aggregate_wins is True
+    assert r.kind_beats_both_halves("semantic") is False
+    assert r.losing_kinds == ["semantic"]
+    # The aggregate alone says "ship it". The honest verdict must not.
+    assert r.fusion_is_earning_its_keep is False
+
+
+def test_print_names_the_losing_kind_instead_of_a_blanket_verdict(capsys):
+    """The printed summary is what a human actually reads. It must name the
+    losing kind, and must NOT print the "RRF is earning its keep" line while a
+    kind is degraded."""
+    from eval.harness import ArmScore, Report, _print
+
+    def s(recall: float, m: float) -> ArmScore:
+        return ArmScore(recall_at_10=recall, mrr=m, n=10)
+
+    r = Report(
+        lexical_ranker="bm25",
+        k=60,
+        limit=10,
+        arms={
+            "dense": s(0.80, 0.70),
+            "lexical": s(0.70, 0.60),
+            "hybrid": s(0.85, 0.75),
+        },
+        by_kind={
+            "semantic": {
+                "dense": s(0.95, 0.86),
+                "lexical": s(0.50, 0.40),
+                "hybrid": s(0.90, 0.80),
+            },
+            "lexical": {
+                "dense": s(0.60, 0.50),
+                "lexical": s(0.90, 0.80),
+                "hybrid": s(0.95, 0.85),
+            },
+            "hybrid": {
+                "dense": s(0.80, 0.70),
+                "lexical": s(0.70, 0.60),
+                "hybrid": s(0.90, 0.80),
+            },
+        },
+    )
+
+    _print(r)
+    out = capsys.readouterr().out
+
+    assert "semantic" in out
+    assert "Fusion beats both halves, in aggregate and on every kind" not in out

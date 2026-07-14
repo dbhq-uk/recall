@@ -277,3 +277,45 @@ class PgVectorStore:
             dense_hit_count=sum(1 for h in hits if h.dense_rank is not None),
             lexical_hit_count=sum(1 for h in hits if h.lexical_rank is not None),
         )
+
+    # -------------------------------------------------------------------
+    # Eval-support only. Not part of the Store protocol: `search()` above is
+    # what production ever calls. These serve one half at a time, unfused, so
+    # eval/harness.py can score each arm against its own true top-`limit`
+    # ranking rather than deriving a baseline by re-sorting the fused pool
+    # (biased — the fused result only contains docs that survived fusion).
+    # -------------------------------------------------------------------
+
+    def search_dense_only(
+        self, qvec: list[float], sources: list[str], limit: int = 10
+    ) -> list[str]:
+        """The dense half's true top-`limit`, by cosine distance. rel_path per rank."""
+        resolved = self._resolve_sources(sources)
+        if not resolved:
+            return []
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                sql.SEARCH_DENSE_ONLY,
+                {"qvec": Vector(qvec), "sources": resolved, "limit": limit},
+            )
+            return [row[0] for row in cur.fetchall()]
+
+    def search_lexical_only(self, qtext: str, sources: list[str], limit: int = 10) -> list[str]:
+        """The lexical half's true top-`limit`. rel_path per rank.
+
+        Uses whichever ranker is ACTUALLY live, per lexical_ranker(): real BM25
+        via paradedb.match when the bm25 index exists, ts_rank_cd otherwise.
+        Never bare `@@@` with user text — see CLAUDE.md, it raises on a colon.
+        """
+        resolved = self._resolve_sources(sources)
+        if not resolved:
+            return []
+        ranker = self.lexical_ranker()
+        statement = (
+            sql.SEARCH_LEXICAL_ONLY_BM25
+            if ranker == "bm25"
+            else sql.SEARCH_LEXICAL_ONLY_TS_RANK_CD
+        )
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(statement, {"qtext": qtext, "sources": resolved, "limit": limit})
+            return [row[0] for row in cur.fetchall()]

@@ -126,5 +126,40 @@ LIMIT %(limit)s
 SEARCH_BM25 = f"WITH {_DENSE_CTE}, {_LEXICAL_CTE_BM25} {_FUSE_TAIL}"
 SEARCH_TS_RANK_CD = f"WITH {_DENSE_CTE}, {_LEXICAL_CTE_TS_RANK_CD} {_FUSE_TAIL}"
 
+# ---------------------------------------------------------------------------
+# Eval-support only. These serve one half at a time, unfused, so eval/harness.py
+# can score each arm against its own true top-`limit` — never derived by
+# re-sorting the fused pool, which would be biased (the fused result only
+# contains docs that survived fusion). Not part of the Store protocol used at
+# request time; PgVectorStore exposes them as extra methods for the harness.
+# ---------------------------------------------------------------------------
+
+SEARCH_DENSE_ONLY = """
+SELECT rel_path
+FROM chunks
+WHERE source = ANY(%(sources)s)
+ORDER BY embedding <=> %(qvec)s
+LIMIT %(limit)s
+"""
+
+# Same paradedb.match rule as the fusion query above: never bare `@@@` with
+# user text, it parses the RHS as pg_search's query DSL and raises on a colon.
+SEARCH_LEXICAL_ONLY_BM25 = """
+SELECT rel_path
+FROM chunks
+WHERE source = ANY(%(sources)s)
+  AND id @@@ paradedb.match('content', %(qtext)s)
+ORDER BY paradedb.score(id) DESC
+LIMIT %(limit)s
+"""
+
+SEARCH_LEXICAL_ONLY_TS_RANK_CD = """
+SELECT c.rel_path
+FROM chunks c, websearch_to_tsquery('english', %(qtext)s) q
+WHERE c.source = ANY(%(sources)s) AND c.tsv @@ q
+ORDER BY ts_rank_cd(c.tsv, q) DESC
+LIMIT %(limit)s
+"""
+
 ALL_SOURCES = "SELECT DISTINCT source FROM chunks ORDER BY source"
 STATS_BY_SOURCE = "SELECT source, count(*) FROM chunks GROUP BY source ORDER BY source"
