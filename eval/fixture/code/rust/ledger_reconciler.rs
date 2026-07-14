@@ -52,7 +52,7 @@ pub fn reconcile_ledger_entries(ledger: &[LedgerEntry], invoice: &[CarrierInvoic
     let mut results = Vec::with_capacity(ledger.len());
     let mut seen = HashSet::new();
     for entry in ledger {
-        seen.insert(&entry.shipment_id);
+        seen.insert(entry.shipment_id.as_str());
         let (kind, variance_cents) = match by_id.get(entry.shipment_id.as_str()) {
             None => (VarianceKind::MissingFromInvoice, entry.expected_cost_cents),
             Some(&billed) => {

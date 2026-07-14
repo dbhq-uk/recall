@@ -1,4 +1,4 @@
-//! Handheld scanner protocol decoding for the depot receiving line.
+//! Scanner protocol decoding for the depot receiving line.
 //!
 //! Scan guns talk to the gateway over a serial link using a compact
 //! framed protocol, so it can tell scans apart from heartbeats and
@@ -9,7 +9,7 @@
 pub const FRAME_START_BYTE: u8 = 0x02;
 pub const FRAME_END_BYTE: u8 = 0x03;
 pub const MAX_FRAME_LEN: usize = 64;
-pub const SCANNER_HEARTBEAT_INTERVAL_SECS: u64 = 30;
+pub const HEARTBEAT_INTERVAL_SECS: u64 = 30;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ScanEvent {
@@ -40,7 +40,7 @@ impl std::fmt::Display for FrameError {
 impl std::error::Error for FrameError {}
 
 fn xor_checksum(bytes: &[u8]) -> u8 {
-    bytes.iter().fold(0u8, |acc, b| acc ^ b)
+    bytes.iter().fold(0, |acc, b| acc ^ b)
 }
 
 /// Validates framing bytes and checksum before trusting the payload.
@@ -89,13 +89,10 @@ impl ScannerFrameBuffer {
         results
     }
 
-    pub fn pending_len(&self) -> usize {
-        self.pending.len()
-    }
+    pub fn pending_len(&self) -> usize { self.pending.len() }
 }
 
-/// Flags a scanner as offline rather than assume it's just between
-/// scans.
+/// Flags a scanner as offline rather than mid-scan.
 pub fn is_scanner_overdue(seconds_since_last_event: u64) -> bool {
-    seconds_since_last_event > SCANNER_HEARTBEAT_INTERVAL_SECS * 3
+    seconds_since_last_event > HEARTBEAT_INTERVAL_SECS * 3
 }
