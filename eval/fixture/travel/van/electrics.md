@@ -21,7 +21,7 @@ Renogy 40A DC-DC charger, model RBC40D1S, fed from the starter battery via 6mm²
 
 ### Solar
 
-200W monocrystalline panel (Renogy) feeding a Victron SmartSolar MPPT 100/20 charge controller, mounted on the wall behind the passenger seat where it's easy to read the Bluetooth-paired display. Cabling is 4mm² solar cable with MC4 connectors running through a single roof gland — the only roof penetration on the whole van. On a clear day in summer this alone comfortably covers the fridge and lighting load without touching engine charging at all.
+200W monocrystalline panel (Renogy) feeding a Victron SmartSolar MPPT 100/20 charge controller, mounted on the wall behind the passenger seat where it's easy to read the Bluetooth-paired display. Cabling is 4mm² solar cable with MC4 connectors running through a single roof gland — the only roof penetration on the whole van, and it is bedded and capped with Sikaflex, same as everything else that goes through that roof. The panel's own brackets are bonded rather than bolted; the roof conversion notes cover why, and this note is only concerned with what comes down the cable from them. On a clear day in summer this alone comfortably covers the fridge and lighting load without touching engine charging at all.
 
 ## Distribution
 

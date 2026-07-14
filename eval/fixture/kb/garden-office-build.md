@@ -33,9 +33,19 @@ Floor built from 47x150mm C24 timber joists at 400mm centres, sat on the deck bl
 
 Celotex GA4000 rigid foam board, 100mm thickness, cut to fit snugly between the wall studs with minimal gaps, taped at every joint with foil tape to maintain the vapour barrier. Roof insulation is a thinner 25mm Celotex board above the rafters, under the roofing deck, since the shallow pitch didn't leave room for anything thicker without pushing the height over the permitted development limit.
 
+#### Why rigid board here and not something soft
+
+Worth a footnote, since the van build went a completely different way. In the van I used Thinsulate for the walls and ceiling; in the office I used Celotex, and anyone who has read both sets of notes will reasonably ask why.
+
+The short answer is that a timber stud wall is not a steel van, and this note is only about the stud wall. A stud wall gives you flat, parallel, dimensionally stable bays with square corners, which is exactly the geometry rigid PIR board is good at — cut once, push it in, tape the joint, done — and in a wall only 100mm deep you want the best R-value per millimetre you can get, which is what PIR is. That is the entire case for Celotex here and it is a case about carpentry, not about vans.
+
+Why the van went the other way is a separate argument with separate reasons, and it is written up properly in the insulation notes rather than half-remembered here. Same person, same tools, opposite decision, both correct — but do not try to reconstruct the van's reasoning from this paragraph, because it is not in it.
+
 ## Roofing
 
 EPDM rubber membrane (Firestone RubberCover), single sheet with no seams across the whole 3m x 2.4m roof deck, glued down with the manufacturer's contact adhesive and dressed over a timber drip edge trim on all four sides. Chose EPDM over felt shingles mainly for the no-seams, 20-plus-year lifespan — felt would have been cheaper but I didn't want to be back up there re-felting within a decade.
+
+The one place a tube of Sikaflex came out of the van cupboard and got used on the office: bedding the timber drip trim down onto the EPDM at the corners, where the membrane's own contact adhesive was never going to cope with a lap joint and a screw fixing in the same place. Two corners, a very small amount of sealant, and it has stayed watertight through three winters. Nothing structural, nothing clever — just the right tube already being on the shelf.
 
 ## Cladding
 

@@ -20,6 +20,26 @@ Logs are shipped to CloudWatch Logs and retained for 30 days, which is long enou
 
 Application and infrastructure metrics are scraped by Prometheus and visualised in Grafana, including the query-performance dashboard described in `postgres-extensions.md`, which reads from `pg_stat_statements` rather than from application metrics directly.
 
+## The embedding worker
+
+Worth calling out separately, because it is the one component whose telemetry
+regularly confuses people. The worker consumes `incident_report.created`, calls an
+external embedding API, and writes a vector back into Postgres. Its spans carry a
+`vector.store` attribute, and that attribute reads `pgvector` on every span, in
+every environment, always.
+
+This surprises people who have read the ADRs and half-remember that ChromaDB was
+under consideration at some point. It was, and it was rejected, and no ChromaDB
+code path ever shipped — the attribute exists not because there is a choice being
+made at runtime but because it was cheap to add and it settles the question
+instantly the next time somebody asks. If you ever see that attribute read
+anything other than `pgvector`, something is very wrong and the ADRs will not help
+you.
+
+The worker's error rate is the one metric worth alerting on here: a spike means
+the embedding API is unavailable, similarity search is quietly getting staler by
+the minute, and nobody using the product will see any error at all.
+
 ## Tracing
 
 Distributed traces use OpenTelemetry, with spans exported to Honeycomb as the backend. Every core-api process is configured with the `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable pointing at a local collector sidecar, which batches and forwards spans rather than each process talking to Honeycomb directly. A trace for a single tracking-page request typically shows the HTTP span, the Redis cache lookup described in `caching-strategy.md`, and, on a cache miss, the Postgres query span beneath it - enough to see at a glance which tier is responsible for a slow response.

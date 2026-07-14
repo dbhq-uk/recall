@@ -6,6 +6,29 @@
 #
 # `relevant` lists rel_paths (relative to eval/fixture/) that genuinely answer the
 # query. A hit counts as relevant if its rel_path is in this list.
+#
+# ---------------------------------------------------------------------------
+# A note on why this set looks the way it does.
+#
+# The first time we measured retrieval, 25 of these 40 queries scored a perfect
+# 1.000 on every arm. A query that every arm answers perfectly measures nothing:
+# it cannot tell dense from lexical from fusion, and an eval built out of them is
+# an eval you can only tune against noise.
+#
+# The cause was structural, not a bug in the queries. Almost every identifier and
+# every fact in the corpus appeared in exactly ONE file. With a single candidate
+# in the whole index, BM25 cannot be wrong and neither can cosine distance.
+#
+# So the corpus now carries deliberate distractors: changelogs, cross-references,
+# runbooks, registers and "see also" notes that MENTION a term without answering
+# the question it belongs to, plus near-miss identifiers (MAX_RETRY_BUDGET_MS
+# alongside MAX_RETRY_BUDGET) and documents on the same topic as a semantic
+# query's target that do not contain its answer.
+#
+# The rule for every query below: exactly one file genuinely answers it. The
+# distractors are plausible and wrong. Ambiguity here would not make the eval
+# harder, it would make it meaningless.
+# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # semantic (15) - the queries grep cannot serve. Deliberately phrased in
@@ -103,138 +126,158 @@ kind = "semantic"
 relevant = ["kb/photography-notes.md"]
 
 # ---------------------------------------------------------------------------
-# lexical (15) - exact identifiers, error strings, config keys, part numbers.
-# Nearly free for BM25; the dense half should struggle with these.
+# lexical (15) - an exact identifier, error string, config key or part number.
+#
+# The term has to matter: strip it out and the query is unanswerable. But a bare
+# identifier lookup ("TariffCalculator") cannot discriminate between anything, so
+# each of these is a QUESTION that happens to contain the identifier, and each
+# identifier now appears in three or four files. The decoys - an on-call error
+# catalogue, a changelog, consumer modules that import and catch - mention the
+# term without answering the question, so ranking the true answer first takes
+# more than raw term-matching.
 # ---------------------------------------------------------------------------
 
 [[query]]
 id = "q016"
-text = "TariffCalculator"
+text = "what does TariffCalculator do when no tariff band matches the HS code"
 kind = "lexical"
 relevant = ["code/python/tariff_engine.py"]
 
 [[query]]
 id = "q017"
-text = "UnreachableDestinationError"
+text = "what makes the linehaul route search raise UnreachableDestinationError"
 kind = "lexical"
 relevant = ["code/python/route_optimizer.py"]
 
 [[query]]
 id = "q018"
-text = "IdempotencyKeyError"
+text = "when is IdempotencyKeyError raised instead of RequestInFlightError"
 kind = "lexical"
 relevant = ["code/python/idempotency_store.py"]
 
 [[query]]
 id = "q019"
-text = "RetryBudgetExhaustedError"
+text = "how many attempts are allowed before RetryBudgetExhaustedError is thrown"
 kind = "lexical"
 relevant = ["code/ts/backoff_scheduler.ts"]
 
 [[query]]
 id = "q020"
-text = "SlotCapacityExceededError"
+text = "what condition throws SlotCapacityExceededError when reserving a depot slot"
 kind = "lexical"
 relevant = ["code/ts/delivery_window.ts"]
 
 [[query]]
 id = "q021"
-text = "RateCardNotFoundError"
+text = "what makes a carrier rate card lookup throw RateCardNotFoundError"
 kind = "lexical"
 relevant = ["code/ts/carrier_rate_card.ts"]
 
 [[query]]
 id = "q022"
-text = "ErrLedgerMismatch"
+text = "which reconciliation checks produce ErrLedgerMismatch before a manifest is transmitted"
 kind = "lexical"
 relevant = ["code/go/manifest_builder.go"]
 
 [[query]]
 id = "q023"
-text = "ErrStaleEvent"
+text = "why does applying a tracking event return ErrStaleEvent"
 kind = "lexical"
 relevant = ["code/go/shipment_tracker.go"]
 
 [[query]]
 id = "q024"
-text = "FRAME_START_BYTE"
+text = "what byte value is FRAME_START_BYTE in the scanner frame protocol"
 kind = "lexical"
 relevant = ["code/rust/barcode_scanner.rs"]
 
 [[query]]
 id = "q025"
-text = "MAX_ACCEPTABLE_VARIANCE_CENTS"
+text = "what happens to a variance larger than MAX_ACCEPTABLE_VARIANCE_CENTS"
 kind = "lexical"
 relevant = ["code/rust/ledger_reconciler.rs"]
 
 [[query]]
 id = "q026"
-text = "shared_preload_libraries"
+text = "which extensions have to be named in shared_preload_libraries on the core instance"
 kind = "lexical"
 relevant = ["architecture/postgres-extensions.md"]
 
 [[query]]
 id = "q027"
-text = "ERR_MIGRATION_NO_DOWN"
+text = "what rule is being enforced when a pull request fails with ERR_MIGRATION_NO_DOWN"
 kind = "lexical"
 relevant = ["architecture/database-migration-policy.md"]
 
 [[query]]
 id = "q028"
-text = "COGNITO_USER_POOL_ID"
+text = "what does COGNITO_USER_POOL_ID configure in core-api"
 kind = "lexical"
 relevant = ["architecture/adr-003-authentication-strategy.md"]
 
 [[query]]
 id = "q029"
-text = "fault code P0671"
+text = "what did we do about fault code P0671 on the van"
 kind = "lexical"
 relevant = ["travel/maintenance/breakdown-notes.md"]
 
 [[query]]
 id = "q030"
-text = "policy number HPI-3391847"
+text = "what limit of indemnity does policy number HPI-3391847 carry"
 kind = "lexical"
 relevant = ["business/ops/insurance-suppliers-expenses.md"]
 
 # ---------------------------------------------------------------------------
-# hybrid (10) - a rare exact term plus a conceptual framing. These are the
-# queries that justify RRF existing at all: neither half should win alone.
+# hybrid (10) - the queries that justify RRF existing at all.
+#
+# The shape each one is built to: a rare exact term that now appears in SEVERAL
+# corpus files, so the lexical half alone shortlists the wrong ones as readily as
+# the right one; plus a conceptual framing that is ambiguous without that term,
+# so the dense half alone shortlists neighbours on the same topic. Neither half
+# should win alone. Only the intersection lands on the target.
+#
+# Term multiplicity, at the time of writing (files containing the term):
+#   ChromaDB 4 | pg_cron 4 | BullMQ 5 | Sikaflex 4 | Thinsulate 4
+#   DPF 4 | "Flat Rate Scheme" 4 | "Tom Vickers" 6 | "risk buffer" 4
+#   "Sarpo Mira" 4
+#
+# If any of these ever drops back to 1, that query has quietly gone saturated
+# again and is measuring nothing. Check before trusting the number.
 # ---------------------------------------------------------------------------
 
 [[query]]
 id = "q031"
-text = "why did we reject ChromaDB for the embedded backend"
+text = "why ChromaDB was rejected for storing the incident report embeddings"
 kind = "hybrid"
 relevant = ["architecture/adr-004-vector-store.md"]
 
 [[query]]
 id = "q032"
-text = "why does pg_cron need a full instance restart rather than a config reload"
+text = "why pg_cron cannot be switched on with a configuration reload alone"
 kind = "hybrid"
 relevant = ["architecture/postgres-extensions.md"]
 
 [[query]]
 id = "q033"
-text = "why BullMQ for webhook-triggered work but EventBridge for the nightly run"
+text = "why the nightly invoice run is not simply a BullMQ repeatable job"
 kind = "hybrid"
 relevant = ["architecture/adr-002-background-jobs-queue-vs-cron.md"]
 
 [[query]]
 id = "q034"
-text = "why we bonded the solar brackets with Sikaflex instead of screwing through the roof"
+text = "why the solar brackets are bonded with Sikaflex rather than screwed down"
 kind = "hybrid"
 relevant = ["travel/van/roof-conversion.md"]
 
 [[query]]
 id = "q035"
-text = "why Thinsulate rather than PIR board for the van walls"
+text = "why Thinsulate went into the van walls instead of PIR board"
 kind = "hybrid"
 relevant = ["travel/van/insulation.md"]
 
 [[query]]
 id = "q036"
-text = "why the DPF warning light kept returning on short urban journeys"
+text = "why the DPF warning light kept coming back on short urban journeys"
 kind = "hybrid"
 relevant = ["travel/maintenance/mot-service-log.md"]
 

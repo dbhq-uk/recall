@@ -24,6 +24,12 @@ The core of the system is a constraint solver that assigns jobs to driver-vehicl
 
 Each night at 02:00 the system pulls the next day's manifest from Northgate's transport management system (a third-party product called Freightlink, which they'd already been using for years and had no appetite to replace) via a CSV export dropped into an SFTP folder. This has been more reliable than the API integration we originally tried, which Freightlink's own support team eventually admitted was undocumented and barely maintained.
 
+### Who works on it
+
+Sam leads, Priya covers the solver, and Tom Vickers (through his own company, Vickers Dev Ltd) has been on the retainer since 2022, currently around two days a week of the three-day allocation. Tom knows the Freightlink import better than anyone here does, largely because he wrote most of it and then spent an unhappy fortnight discovering what Freightlink's support team eventually admitted about their own API.
+
+Tom also bills days against a second, entirely separate client engagement. The two are contracted and paid on different bases, and the reasons for that are not a Northgate matter at all — they are set out in the IR35 notes, which is the only place that determination is recorded and the only place anyone should be reading it from. Nothing about how Tom is engaged here should be inferred from how he is engaged elsewhere, or the reverse.
+
 ### Uptime and support
 
 SLA: 99.5% uptime during Northgate's operating hours (05:00–20:00 Monday to Saturday), measured monthly. We miss this in roughly one month in six, almost always because of a scheduled AWS maintenance window that lands badly, not because of application bugs. Support is business-hours only under the retainer; anything outside that is chargeable at the senior day rate, pro-rated.

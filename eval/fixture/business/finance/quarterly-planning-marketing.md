@@ -31,6 +31,18 @@ Two Launchpad engagements sold in Q2 2026, both delivered within the six-week wi
 
 Provisionally planning a mid-level developer hire for Q4 2026, contingent on Q3 landing at or above the £185,000 target. Not committing budget yet — this is a "if the number holds, we start the process in October" note, not a decision.
 
+## Cost lines landing in Q3
+
+Three known cost events sit inside the quarter and are already in the £185,000 plan:
+
+- **Insurance renewal, 1 September.** The professional indemnity policy (HPI-3391847) and the cyber policy renew together through Cavendish. Budgeted at £2,350 combined on the assumption of another modest rate rise; Cavendish have not quoted yet. Cover levels are unchanged and are documented in the insurance notes, not here.
+- **Conference sponsorship, October.** £3,200, committed. Falls just outside the quarter for cash but is invoiced within it.
+- **VAT.** Second full year on standard accounting since leaving the Flat Rate Scheme, which now smooths across the quarter rather than landing as a single lump — the practical effect on quarterly cash forecasting is that the number is duller and more predictable than it used to be, which is exactly what we wanted.
+
+## A note on how the target is built
+
+The £185,000 is not a buffered number. Revenue targets are set from signed contracts plus a weighted pipeline, with no multiplier applied. The 1.4x risk buffer people sometimes ask about is a *pricing* device applied to fixed-price quotes, and it has nothing whatsoever to do with how we forecast a quarter — applying it here would mean quietly forecasting a number we do not believe. The rate card explains what the buffer is for; do not import it into this document.
+
 ## Risks to the target
 
 The single biggest risk to hitting £185,000 is the Aldermoor Phase 2 scoping conversation slipping past their board budget approval into Q4 — if that engagement doesn't convert to a signed contract by the end of August, we're relying on Launchpad sales and a currently-unsigned prospect (a logistics referral through Northgate, still in early conversation) to close the gap. Worth flagging now rather than discovering it in September.

@@ -32,6 +32,10 @@ Front discs and pads replaced January 2025 at 92,300 miles. Went with Brembo aft
 
 Mann W712/94, kept a couple of spares in the garage since it's a common enough part to buy in bulk.
 
+### Unscheduled work
+
+Two pieces of unscheduled work sit outside the service schedule above and are logged in the breakdown notes rather than here, because they were faults rather than servicing: the alternator failure on the M6 in June 2024, and a glow plug fault in the cold snap of February 2024. This log covers what the van is *due*; the breakdown notes cover what has gone wrong with it and what was done about each one.
+
 ## Tyres
 
 Matched set of four fitted May 2024: Continental VanContact 4Season, size 235/65 R16C. Went for the all-season compound specifically because of how much winter driving in Scotland the van does — swapping between summer and winter tyres twice a year wasn't practical given where it's parked.

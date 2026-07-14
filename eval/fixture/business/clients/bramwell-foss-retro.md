@@ -61,6 +61,12 @@ curl -X POST "$SANITY_PURGE_HOOK"
 vercel deploy --prod --token="$VERCEL_TOKEN"
 ```
 
+## How the change order was priced
+
+For the record, since it comes up whenever anyone reads this retro: the £9,200 Klarna change order was built the same way any of our fixed-price work is, from an internal estimate in developer-days at the senior day rate with the standard 1.4x risk buffer applied on top. The rate card explains what that multiplier exists for; this note is not the place to re-argue it.
+
+What is worth saying here is only what the buffer failed to cover, which was calendar time. Whatever that multiplier exists to absorb — and the rate card is the document that sets that out, not this one — it plainly did not absorb five weeks of a client's go-live sliding, nor the opportunity cost of the one person capable of doing the work being unavailable to do anything else for the duration. Those are not estimation errors and no multiplier fixes them.
+
 ## Numbers
 
 Total billed across the engagement: £71,200 (£62,000 base plus the £9,200 Klarna change order). Final milestone invoice KSW-2025-0143, £34,000, raised 12 August 2025 and paid 21 August — Bramwell & Foss have never once been late on an invoice, which counts for a lot given how the timeline went.

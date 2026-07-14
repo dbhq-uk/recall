@@ -34,6 +34,26 @@ jobs:
 3. **Integration tests** - run against a throwaway Postgres 15 service container, migrated from scratch with `dbmate up` at the start of the job so every run starts from an identical, empty schema.
 4. **Build and package** - a production Docker image is built and pushed to Amazon ECR, tagged with the short commit SHA.
 
+## The fifth stage: migrations
+
+There is a fifth job, `migrations`, which does not appear in the excerpt above because it only runs on pull requests that touch `db/migrations/`. It is, by a wide margin, the stage engineers see go red most often, and the code it reports when it does is `ERR_MIGRATION_NO_DOWN`.
+
+This note deliberately does not reproduce what that code means or what a reviewer is supposed to do about it. That belongs to the migration policy, which is the single source of truth for the rule being enforced here, and copying the rule into two places is how the two places end up disagreeing. All this pipeline note claims is: if you see `ERR_MIGRATION_NO_DOWN` in a CI log, it came from the `migrations` job, and the migration policy is the document to open next.
+
+## Configuration in CI
+
+CI holds no production credentials at all. The integration-test job runs against a throwaway Postgres container and a stubbed identity provider, so `COGNITO_USER_POOL_ID`, `WAYFREIGHT_SERVICE_JWT_SECRET` and the rest are set to obviously-fake values in the workflow file rather than pulled from Parameter Store:
+
+```yaml
+# .github/workflows/ci.yml (excerpt, env block)
+env:
+  COGNITO_USER_POOL_ID: eu-west-2_TESTPOOL0   # stub; the real pools are per-environment
+  WAYFREIGHT_SERVICE_JWT_SECRET: ci-not-a-real-secret
+  MAX_RETRY_BUDGET_MS: 5000                   # shorter than prod so CI fails fast
+```
+
+If a test needs a real value from any of these to pass, that test is testing the wrong thing.
+
 ## Deployment
 
 A successful build on `main` triggers AWS CodeDeploy to perform a blue/green deployment onto the ECS Fargate service described in `adr-001-modular-monolith.md`: CodeDeploy shifts traffic to the new task set gradually while watching the ALB's target group health checks, and automatically rolls back to the previous task set if error rates spike during the shift, without needing a human to notice and intervene.

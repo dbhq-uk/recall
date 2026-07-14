@@ -16,6 +16,8 @@ PI covers claims arising from our advice or work product being wrong or negligen
 
 We run Xero on the Grow plan, currently £36/month, which covers unlimited invoicing and bank reconciliation for the two of us (Ellie and our accountant) who touch it directly.
 
+A note on VAT and everything in this section: since April 2025 we have been on standard VAT accounting rather than the Flat Rate Scheme, which means the VAT on every supplier line below — Xero, AWS, GitHub, the Pleo subscription, the laptop lease — is reclaimable input VAT rather than money we simply absorbed. Under the Flat Rate Scheme none of it was. That changes the real cost of this whole list by roughly a fifth and it is the reason Ellie now codes supplier invoices carefully rather than lumping them all into one nominal. Why we left the scheme is a separate story and it is written up in the VAT notes.
+
 ### Accountancy: Fernbank Accountants
 
 Our external accountant is Naomi Reyes at Fernbank Accountants, who handles year-end statutory accounts, the Companies House confirmation statement, and corporation tax computations. Monthly management accounts are produced in-house by Ellie from the Xero data; Fernbank reviews quarterly.

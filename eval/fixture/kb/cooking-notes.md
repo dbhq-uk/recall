@@ -39,6 +39,16 @@ White cabbage, shredded fine, 2% salt by weight of the cabbage, massaged and pac
 
 Similar principle but with napa cabbage, a paste of gochugaru, garlic, ginger, fish sauce and a little sugar rubbed through the leaves after an initial salt-brine soak and rinse. Ferments faster than sauerkraut, usually good within 5-7 days at room temperature, then moved to the fridge to slow things down once it's at the preferred sourness.
 
+## Potatoes — which variety for what
+
+Worth writing down because I grow two varieties on the allotment and then routinely use the wrong one, and the difference in the pan is much bigger than it has any right to be.
+
+**Charlotte** is waxy. It holds its shape when boiled, does not go floury or collapse, and is therefore the one for potato salad, for anything sliced into a gratin, and for boiling and dressing with butter and parsley. It is a poor roasting potato — it browns but never gets that shattering, blistered crust — and it makes a dense, gluey mash. Do not use it for mash. I have used it for mash.
+
+**Sarpo Mira** is the opposite: floury, high dry-matter, and it falls apart if you boil it a minute too long. That fluffiness is exactly what you want for roasting (parboil, drain, shake the pan hard to rough up the edges, then into hot fat) and for baked potatoes, where the flesh comes out light rather than waxy. It also makes a proper mash. It is completely wrong for a salad and will disintegrate into the water if you try.
+
+Rough rule I have finally learned: if the potato needs to keep its shape, Charlotte. If it needs to fall apart, Sarpo Mira. Nothing about how either of them grows tells you this — that is in the allotment notes and it is a different question entirely — but it is the thing that actually matters at the point where they hit the pan.
+
 ## Knife sharpening
 
 Bought a whetstone set (King combination stone, 1000/6000 grit) after years of a pull-through sharpener leaving the edge worse, not better, over time. Angle held at roughly 17 degrees, checked with a cheap plastic angle guide clipped to the spine of the blade until the feel of it became familiar enough to do freehand.

@@ -25,6 +25,12 @@ We committed to working in a manner aligned with ISO 27001 — not certified our
 
 A Data Processing Agreement under UK GDPR was signed alongside the main contract, naming us as processor and Aldermoor as controller, with patient referral data as the special category data in scope. The DPA specifies a 72-hour breach notification window to Aldermoor, tighter than the statutory 72-hour ICO reporting clock, so that Aldermoor themselves have time to assess and report onward if needed.
 
+### Staffing
+
+Sam owns the incident response process and Priya led the build. Tom Vickers, our associate, joined the Phase 1 workstream in August 2025 and has been on it since, working mainly on the clinician assignment screens and the audit logging. He splits his week between this and our other retainer client.
+
+Aldermoor's own onboarding and security clearance process is tied to Tom as a named individual, which has practical consequences for how the engagement is structured and how his time is billed. Those consequences, and the determination behind them, are recorded in the IR35 notes — not here, and not in the contract folder summary. This document records only that he works on it.
+
 ### Scope and value
 
 Phase 1 (referral intake, case notes, clinician assignment) was quoted at £120,000, delivered across five months from July to November 2025. Phase 2 (patient-facing appointment booking) is in discovery as of this writing, expected to be scoped as a separate fixed-price engagement once Aldermoor's board signs off budget in their next financial year.

@@ -16,11 +16,16 @@ Origo alcohol-fuel stove kept as a backup, single burner, no gas involved at all
 
 Vango Faro air awning, inflatable poles rather than traditional metal ones — pitches in about ten minutes solo, which matters when it's raining and you just want shelter up quickly. Rated to a fairly modest wind loading so it comes down if anything more than a stiff breeze is forecast overnight; not something to leave up unattended.
 
+## Cab window covers
+
+Set of four Thinsulate-lined external silver screens for the windscreen and both cab doors, plus a matching internal blind for the bulkhead gap. Bought in early 2023 after the first proper winter made it obvious that the cab is where the cold gets in, whatever has been done to the living space behind it. They live rolled up under the passenger seat and go on last thing at night. Cheapest single upgrade to how the van feels to sleep in below freezing, by a distance — see the condensation log for the before-and-after numbers.
+
 ## Tools and recovery
 
 - NOCO Boost Plus GB40 jump starter, 1000A peak — used exactly once so far but that one time (flat battery after leaving the fridge running with the engine off for two days longer than planned) justified the cost outright.
 - MaXtrax recovery tracks, carried on the tow-bar rack rather than inside — used on soft ground at a farm campsite in Pembrokeshire where the field had gone soft overnight after rain and the van was sinking on pull-away.
 - Tow rope rated to 3.5 tonnes, kept in the tool roll along with a basic socket set, cable ties, gaffer tape and a multimeter (added to the kit after the alternator failure on the M6 — see the breakdown notes).
+- ELM327 Bluetooth OBD reader, £12, permanently in the glovebox. Reads live data as well as stored codes, so it will show DPF regeneration status and soot loading while driving, which is more useful than it sounds when the dash light comes on and you want to know whether to pull over or keep going. The codes it has actually thrown on this van — P0671 in February 2024, P0234 in October 2025, P2002 back in 2022 — are listed and explained in the OBD notes; what was actually done about each of them is in the breakdown notes, not here.
 
 ## Packing list
 
