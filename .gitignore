@@ -1,0 +1,28 @@
+# Secrets and local config
+.env
+.env.*
+!.env.example
+
+# Agent / harness scratch
+.claude/settings.local.json
+.impeccable/
+
+# Local index data
+.recall/
+*.lance/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+*.tsbuildinfo
+
+# OS
+.DS_Store
