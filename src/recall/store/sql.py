@@ -40,7 +40,8 @@ CREATE TABLE IF NOT EXISTS chunks (
 """
 
 CREATE_INDEXES = [
-    "CREATE INDEX IF NOT EXISTS chunks_embedding_idx ON chunks USING hnsw (embedding vector_cosine_ops)",
+    "CREATE INDEX IF NOT EXISTS chunks_embedding_idx "
+    "ON chunks USING hnsw (embedding vector_cosine_ops)",
     "CREATE INDEX IF NOT EXISTS chunks_tsv_idx    ON chunks USING gin (tsv)",
     "CREATE INDEX IF NOT EXISTS chunks_source_idx ON chunks (source)",
     "CREATE INDEX IF NOT EXISTS chunks_file_idx   ON chunks (source, rel_path)",

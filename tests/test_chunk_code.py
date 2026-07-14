@@ -13,13 +13,13 @@ def test_top_level_function_becomes_its_own_chunk():
 
 
 def test_methods_are_chunked_with_a_qualified_symbol_name():
-    src = '''class Greeter:
+    src = """class Greeter:
     def hello(self, name):
         return f"hi {name}"
 
     def goodbye(self, name):
         return f"bye {name}"
-'''
+"""
     contexts = {c.context for c in chunk_code(src, lang="python", **KW)}
     assert "Greeter.hello" in contexts
     assert "Greeter.goodbye" in contexts
@@ -27,10 +27,10 @@ def test_methods_are_chunked_with_a_qualified_symbol_name():
 
 def test_class_body_is_not_emitted_twice():
     """Naive tree-walking emits the whole class AND each method, duplicating the body."""
-    src = '''class Greeter:
+    src = """class Greeter:
     def hello(self):
         return "unique_marker_string"
-'''
+"""
     chunks = chunk_code(src, lang="python", **KW)
     hits = [c for c in chunks if "unique_marker_string" in c.content]
     assert len(hits) == 1
@@ -53,14 +53,14 @@ def test_stray_closing_brace_is_not_its_own_chunk_but_short_imports_survive():
     """A gap that is pure punctuation (a lone `}` after the last method) must not
     become a chunk. But a short real gap (imports, constants) must be kept — this
     is the exact tradeoff a naive length filter got wrong."""
-    src = '''import os from "os";
+    src = """import os from "os";
 
 class Widget {
     build() {
         return 1;
     }
 }
-'''
+"""
     chunks = chunk_code(src, lang="typescript", source="r", rel_path="a.ts", file_sha="s")
     # No chunk is a bare brace / punctuation-only.
     assert not any(set(c.content.strip()) <= set("}{;) \n\t") for c in chunks if c.content.strip())
@@ -75,7 +75,7 @@ def test_typescript_functions_are_found():
 
 
 def test_go_functions_are_found():
-    src = 'package main\n\nfunc Add(a int, b int) int {\n\treturn a + b\n}\n'
+    src = "package main\n\nfunc Add(a int, b int) int {\n\treturn a + b\n}\n"
     chunks = chunk_code(src, lang="go", source="r", rel_path="a.go", file_sha="s")
     assert any(c.context == "Add" for c in chunks)
 

@@ -1,11 +1,13 @@
-import os
 from pathlib import Path
 
 import pytest
 
 from recall.config import (
-    Registry, RecallConfig, SourceConfig, config_dir,
-    find_source_root, load_config, load_source_config,
+    Registry,
+    config_dir,
+    find_source_root,
+    load_config,
+    load_source_config,
 )
 from recall.errors import ConfigError, UnknownTagError
 

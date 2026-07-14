@@ -1,11 +1,15 @@
-from recall.models import Chunk, SearchResult, SearchHit
+from recall.models import Chunk, SearchResult
 
 
 def test_chunk_id_is_tag_addressed_never_path_addressed():
     c = Chunk(
-        source="brain", rel_path="notes/van.md", chunk_idx=2,
-        content="the pop-top goes up", context="Areas > Travel > Van",
-        lang="markdown", file_sha="abc123",
+        source="brain",
+        rel_path="notes/van.md",
+        chunk_idx=2,
+        content="the pop-top goes up",
+        context="Areas > Travel > Van",
+        lang="markdown",
+        file_sha="abc123",
     )
     assert c.chunk_id == "brain:notes/van.md:2"
 
@@ -13,17 +17,26 @@ def test_chunk_id_is_tag_addressed_never_path_addressed():
 def test_embed_text_prepends_heading_trail():
     """The design's central chunking claim: the trail is embedded, not just stored."""
     c = Chunk(
-        source="brain", rel_path="notes/van.md", chunk_idx=0,
-        content="we went with the pop-top", context="Areas > Travel > Van > Decision",
-        lang="markdown", file_sha="abc",
+        source="brain",
+        rel_path="notes/van.md",
+        chunk_idx=0,
+        content="we went with the pop-top",
+        context="Areas > Travel > Van > Decision",
+        lang="markdown",
+        file_sha="abc",
     )
     assert c.embed_text == "Areas > Travel > Van > Decision\n\nwe went with the pop-top"
 
 
 def test_embed_text_without_context_is_just_content():
     c = Chunk(
-        source="brain", rel_path="a.txt", chunk_idx=0,
-        content="bare text", context=None, lang=None, file_sha="abc",
+        source="brain",
+        rel_path="a.txt",
+        chunk_idx=0,
+        content="bare text",
+        context=None,
+        lang=None,
+        file_sha="abc",
     )
     assert c.embed_text == "bare text"
 

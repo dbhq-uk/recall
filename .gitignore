@@ -19,6 +19,11 @@ venv/
 *.egg-info/
 dist/
 build/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
 
 # Node
 node_modules/

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from recall.config import SourceConfig
-from recall.walker import WalkedFile, sha256_file, walk_source
+from recall.walker import sha256_file, walk_source
 
 
 def build(tmp_path: Path, files: dict[str, str]) -> Path:

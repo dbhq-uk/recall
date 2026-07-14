@@ -50,7 +50,6 @@ def test_fuse_rewards_agreement_between_the_halves():
 
 def test_smaller_k_sharpens_the_top_of_the_ranking():
     """k is a knob, not a law. The design says the golden set should decide it."""
-    dense = {"A": 1}
     assert rrf_score([1], k=1) > rrf_score([1], k=60)
 
 

@@ -33,7 +33,9 @@ def source(tmp_path):
 
 def test_index_writes_chunks(store_factory, source):
     store = store_factory(dim=8)
-    report = index_source("brain", registry=Registry.load(), store=store, embedder=FakeEmbedder(dim=8))
+    report = index_source(
+        "brain", registry=Registry.load(), store=store, embedder=FakeEmbedder(dim=8)
+    )
     assert report.files_indexed == 2
     assert report.chunks_written > 0
     assert store.stats().sources == {"brain": report.chunks_written}

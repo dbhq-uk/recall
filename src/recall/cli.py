@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import functools
-
 from pathlib import Path
 
 import typer
@@ -105,7 +104,9 @@ def reindex(tag: str) -> None:
         embedder=_build_embedder_for(load_config()),
         force=True,
     )
-    typer.echo(f"Reindexed {report.tag}: {report.chunks_written} chunks from {report.files_indexed} files")
+    typer.echo(
+        f"Reindexed {report.tag}: {report.chunks_written} chunks from {report.files_indexed} files"
+    )
 
 
 @app.command()

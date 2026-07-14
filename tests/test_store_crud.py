@@ -9,8 +9,13 @@ pytestmark = [pytest.mark.integration, requires_postgres]
 
 def mk(source="brain", rel_path="a.md", idx=0, content="body", sha="sha1", dim=8) -> Chunk:
     return Chunk(
-        source=source, rel_path=rel_path, chunk_idx=idx, content=content,
-        context="Trail", lang="markdown", file_sha=sha,
+        source=source,
+        rel_path=rel_path,
+        chunk_idx=idx,
+        content=content,
+        context="Trail",
+        lang="markdown",
+        file_sha=sha,
         embedding=[0.1] * dim,
     )
 

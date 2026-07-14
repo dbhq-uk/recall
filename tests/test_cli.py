@@ -20,6 +20,7 @@ def env(tmp_path, monkeypatch):
 def fake_embedder(monkeypatch):
     """Keep the CLI tests off the network. Retrieval quality is the harness's job."""
     from tests.support.fake_embedder import FakeEmbedder
+
     monkeypatch.setattr("recall.cli.build_embedder", lambda cfg: FakeEmbedder(dim=8))
 
 

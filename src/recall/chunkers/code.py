@@ -8,20 +8,31 @@ from recall.models import Chunk
 
 # Node types that mean "a function" and "a class-like container", per grammar.
 _FUNC_TYPES = {
-    "function_definition", "function_declaration", "function_item",
-    "method_definition", "method_declaration", "func_literal",
-    "arrow_function", "function_signature_item",
+    "function_definition",
+    "function_declaration",
+    "function_item",
+    "method_definition",
+    "method_declaration",
+    "func_literal",
+    "arrow_function",
+    "function_signature_item",
 }
 _CLASS_TYPES = {
-    "class_definition", "class_declaration", "impl_item", "struct_item",
-    "interface_declaration", "trait_item", "type_declaration", "module",
+    "class_definition",
+    "class_declaration",
+    "impl_item",
+    "struct_item",
+    "interface_declaration",
+    "trait_item",
+    "type_declaration",
+    "module",
 }
 
 
 @dataclass
 class _Span:
     start: int  # 0-based, inclusive
-    end: int    # 0-based, inclusive
+    end: int  # 0-based, inclusive
     name: str | None
 
 
@@ -45,11 +56,7 @@ def _find_definitions(node, depth: int = 0) -> list[_Span]:
     for child in node.children:
         if child.type in _CLASS_TYPES:
             cls_name = _node_name(child)
-            methods = [
-                gc
-                for gc in _descend_for_methods(child)
-                if gc.type in _FUNC_TYPES
-            ]
+            methods = [gc for gc in _descend_for_methods(child) if gc.type in _FUNC_TYPES]
             if not methods:
                 spans.append(_Span(child.start_point[0], child.end_point[0], cls_name))
                 continue
@@ -82,9 +89,7 @@ def _descend_for_methods(class_node) -> list:
     return out
 
 
-def chunk_code(
-    text: str, *, source: str, rel_path: str, file_sha: str, lang: str
-) -> list[Chunk]:
+def chunk_code(text: str, *, source: str, rel_path: str, file_sha: str, lang: str) -> list[Chunk]:
     try:
         from tree_sitter_language_pack import get_parser
 

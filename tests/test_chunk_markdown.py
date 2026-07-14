@@ -1,5 +1,3 @@
-import pytest
-
 from recall.chunkers.markdown import chunk_markdown
 
 KW = dict(source="brain", rel_path="notes/van.md", file_sha="sha1")
@@ -33,11 +31,13 @@ def test_THE_TRAIL_IS_ACTUALLY_EMBEDDED_not_merely_stored():
 def test_parent_intro_prose_is_not_dropped():
     md = """# Guide
 
-intro prose that belongs to the guide itself and is quite long enough to survive the merge floor because it keeps going and going.
+intro prose that belongs to the guide itself and is quite long enough to survive
+the merge floor because it keeps going and going.
 
 ## Child
 
-child prose that is also comfortably long enough to stand on its own two feet without merging anywhere at all.
+child prose that is also comfortably long enough to stand on its own two feet
+without merging anywhere at all.
 """
     chunks = chunk_markdown(md, **KW)
     assert any("intro prose" in c.content for c in chunks)
@@ -116,7 +116,12 @@ def test_chunk_indices_are_sequential_from_zero():
 def test_chunks_carry_source_relpath_sha_and_lang():
     md = "# A\n\n" + ("prose. " * 60)
     c = chunk_markdown(md, **KW)[0]
-    assert (c.source, c.rel_path, c.file_sha, c.lang) == ("brain", "notes/van.md", "sha1", "markdown")
+    assert (c.source, c.rel_path, c.file_sha, c.lang) == (
+        "brain",
+        "notes/van.md",
+        "sha1",
+        "markdown",
+    )
 
 
 def test_document_with_no_headings_still_chunks():
@@ -132,15 +137,20 @@ def test_empty_document_yields_no_chunks():
 
 
 def test_deeper_heading_pops_the_trail_correctly():
-    md = """# A
+    md = (
+        """# A
 
 ## B
 
-""" + ("bee prose. " * 25) + """
+"""
+        + ("bee prose. " * 25)
+        + """
 
 ## C
 
-""" + ("cee prose. " * 25)
+"""
+        + ("cee prose. " * 25)
+    )
     chunks = chunk_markdown(md, **KW)
     bee = [c for c in chunks if "bee prose" in c.content][0]
     cee = [c for c in chunks if "cee prose" in c.content][0]
@@ -151,17 +161,24 @@ def test_deeper_heading_pops_the_trail_correctly():
 def test_skipped_heading_levels_do_not_falsely_nest_siblings():
     """CommonMark permits jumping ## -> #### (the real corpus does it). Two ####
     siblings under one ## parent must not chain under each other."""
-    md = """## Parent
+    md = (
+        """## Parent
 
-""" + ("parent prose long enough to stand alone without merging at all here. " * 4) + """
+"""
+        + ("parent prose long enough to stand alone without merging at all here. " * 4)
+        + """
 
 #### SiblingOne
 
-""" + ("first sibling prose, also comfortably long enough to be its own chunk. " * 4) + """
+"""
+        + ("first sibling prose, also comfortably long enough to be its own chunk. " * 4)
+        + """
 
 #### SiblingTwo
 
-""" + ("second sibling prose, likewise long enough to avoid the merge floor. " * 4)
+"""
+        + ("second sibling prose, likewise long enough to avoid the merge floor. " * 4)
+    )
     chunks = chunk_markdown(md, **KW)
     one = [c for c in chunks if "first sibling" in c.content][0]
     two = [c for c in chunks if "second sibling" in c.content][0]

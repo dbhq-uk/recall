@@ -8,19 +8,67 @@ GOLDEN = Path(__file__).parent.parent / "eval" / "golden.toml"
 
 # Words we do not count as "leakage" when checking a semantic query.
 STOPWORDS = {
-    "the", "a", "an", "and", "or", "but", "if", "we", "i", "you", "how", "what",
-    "why", "when", "where", "do", "does", "did", "is", "are", "was", "were", "be",
-    "to", "of", "in", "on", "for", "with", "at", "by", "from", "up", "out", "it",
-    "this", "that", "our", "my", "can", "could", "should", "would", "get", "got",
-    "use", "used", "using", "make", "made", "so", "as", "not", "no", "any", "all",
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "but",
+    "if",
+    "we",
+    "i",
+    "you",
+    "how",
+    "what",
+    "why",
+    "when",
+    "where",
+    "do",
+    "does",
+    "did",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "to",
+    "of",
+    "in",
+    "on",
+    "for",
+    "with",
+    "at",
+    "by",
+    "from",
+    "up",
+    "out",
+    "it",
+    "this",
+    "that",
+    "our",
+    "my",
+    "can",
+    "could",
+    "should",
+    "would",
+    "get",
+    "got",
+    "use",
+    "used",
+    "using",
+    "make",
+    "made",
+    "so",
+    "as",
+    "not",
+    "no",
+    "any",
+    "all",
 }
 
 
 def _words(text: str) -> set[str]:
-    return {
-        w.strip(".,:;!?()[]{}\"'`").lower()
-        for w in text.split()
-    } - STOPWORDS - {""}
+    return {w.strip(".,:;!?()[]{}\"'`").lower() for w in text.split()} - STOPWORDS - {""}
 
 
 @pytest.fixture(scope="module")

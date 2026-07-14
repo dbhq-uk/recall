@@ -53,14 +53,21 @@ def index_source(
         if not pending:
             return 0
         vectors = embedder.embed_documents([c.embed_text for c in pending])
-        store.upsert([
-            Chunk(
-                source=c.source, rel_path=c.rel_path, chunk_idx=c.chunk_idx,
-                content=c.content, context=c.context, lang=c.lang,
-                file_sha=c.file_sha, embedding=v,
-            )
-            for c, v in zip(pending, vectors, strict=True)
-        ])
+        store.upsert(
+            [
+                Chunk(
+                    source=c.source,
+                    rel_path=c.rel_path,
+                    chunk_idx=c.chunk_idx,
+                    content=c.content,
+                    context=c.context,
+                    lang=c.lang,
+                    file_sha=c.file_sha,
+                    embedding=v,
+                )
+                for c, v in zip(pending, vectors, strict=True)
+            ]
+        )
         written = len(pending)
         pending = []
         return written
@@ -88,7 +95,7 @@ def index_source(
                 chunks_written += flush()
 
     chunks_written += flush()
-    pruned_chunks = store.prune(tag, seen)
+    store.prune(tag, seen)
 
     # Report files pruned, not chunks — that is what the user deleted.
     pruned_files = len(set(known) - seen) if known else 0

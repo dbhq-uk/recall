@@ -34,7 +34,9 @@ class DimensionMismatchError(RecallError):
     the database. We refuse to index rather than write a corrupt index.
     """
 
-    def __init__(self, stored_model: str, stored_dim: int, configured_model: str, configured_dim: int) -> None:
+    def __init__(
+        self, stored_model: str, stored_dim: int, configured_model: str, configured_dim: int
+    ) -> None:
         super().__init__(
             f"This database was indexed with {stored_model!r} ({stored_dim} dimensions) "
             f"but the configured embedder is {configured_model!r} ({configured_dim} dimensions). "

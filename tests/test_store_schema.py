@@ -2,7 +2,7 @@ import psycopg
 import pytest
 
 from recall.errors import DimensionMismatchError
-from tests.conftest import TEST_DSN, requires_postgres
+from tests.conftest import TEST_DSN, requires_pg_search, requires_postgres
 
 pytestmark = [pytest.mark.integration, requires_postgres]
 
@@ -14,7 +14,7 @@ def _indexes(dsn: str) -> set[str]:
 
 
 def test_init_creates_the_chunks_and_meta_tables(store_factory):
-    store = store_factory()
+    store_factory()
     with psycopg.connect(TEST_DSN) as conn, conn.cursor() as cur:
         cur.execute("SELECT to_regclass('public.chunks'), to_regclass('public.meta')")
         chunks, meta = cur.fetchone()
@@ -39,6 +39,7 @@ def test_init_creates_the_hnsw_and_gin_indexes(store_factory):
     assert "chunks_tsv_idx" in idx
 
 
+@requires_pg_search
 def test_init_creates_the_bm25_index_when_pg_search_is_enabled(store_factory):
     store_factory(pg_search_enabled=True)
     assert "chunks_bm25_idx" in _indexes(TEST_DSN)
@@ -51,6 +52,7 @@ def test_init_creates_NO_bm25_index_when_pg_search_is_absent(store_factory):
     assert "chunks_tsv_idx" in _indexes(TEST_DSN)
 
 
+@requires_pg_search
 def test_lexical_ranker_reports_bm25_when_pg_search_is_live(store_factory):
     store = store_factory(pg_search_enabled=True)
     assert store.lexical_ranker() == "bm25"

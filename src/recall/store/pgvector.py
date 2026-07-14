@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+
 import psycopg
 from pgvector import Vector
 from pgvector.psycopg import register_vector
@@ -22,7 +24,14 @@ class PgVectorStore:
 
     def _connect(self) -> psycopg.Connection:
         conn = psycopg.connect(self.dsn)
-        register_vector(conn)
+        # A brand-new database has no `vector` type until `CREATE EXTENSION
+        # vector` runs. init() (which creates it) and drop_all() (which runs
+        # before init() in the store_factory fixture order, and never touches
+        # a vector column) are the only callers that may legitimately connect
+        # before that point — every other method here is only ever called
+        # once init() has.
+        with contextlib.suppress(psycopg.ProgrammingError):
+            register_vector(conn)
         return conn
 
     def _detect_pg_search(self, conn: psycopg.Connection) -> bool:
@@ -36,7 +45,9 @@ class PgVectorStore:
                 conn.rollback()
                 return False
             cur.execute(sql.HAS_PG_SEARCH)
-            return bool(cur.fetchone()[0])
+            row = cur.fetchone()
+            assert row is not None  # SELECT EXISTS(...) always returns exactly one row
+            return bool(row[0])
 
     def init(self, dim: int, model: str, provider: str) -> None:
         with self._connect() as conn:
@@ -96,7 +107,9 @@ class PgVectorStore:
                 return "ts_rank_cd"
             with conn.cursor() as cur:
                 cur.execute(sql.HAS_BM25_INDEX)
-                has_index = bool(cur.fetchone()[0])
+                row = cur.fetchone()
+                assert row is not None  # SELECT EXISTS(...) always returns exactly one row
+                has_index = bool(row[0])
         return "bm25" if has_index else "ts_rank_cd"
 
     def check_model(self, model: str, dim: int) -> None:
@@ -111,8 +124,14 @@ class PgVectorStore:
             return
         rows = [
             (
-                c.source, c.rel_path, c.chunk_idx, c.content, c.context,
-                c.lang, c.file_sha, Vector(c.embedding),
+                c.source,
+                c.rel_path,
+                c.chunk_idx,
+                c.content,
+                c.context,
+                c.lang,
+                c.file_sha,
+                Vector(c.embedding),
             )
             for c in chunks
         ]
@@ -141,9 +160,7 @@ class PgVectorStore:
 
     def delete_file(self, tag: str, rel_path: str) -> None:
         with self._connect() as conn, conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM chunks WHERE source = %s AND rel_path = %s", (tag, rel_path)
-            )
+            cur.execute("DELETE FROM chunks WHERE source = %s AND rel_path = %s", (tag, rel_path))
             conn.commit()
 
     def prune(self, tag: str, seen: set[str]) -> int:
@@ -164,16 +181,14 @@ class PgVectorStore:
     def file_shas(self, tag: str) -> dict[str, str]:
         """rel_path -> file_sha for everything currently indexed under this tag."""
         with self._connect() as conn, conn.cursor() as cur:
-            cur.execute(
-                "SELECT DISTINCT rel_path, file_sha FROM chunks WHERE source = %s", (tag,)
-            )
+            cur.execute("SELECT DISTINCT rel_path, file_sha FROM chunks WHERE source = %s", (tag,))
             return dict(cur.fetchall())
 
     def stats(self) -> Stats:
         meta = self._meta()
         with self._connect() as conn, conn.cursor() as cur:
             cur.execute(sql.STATS_BY_SOURCE)
-            by_source = dict(cur.fetchall())
+            by_source: dict[str, int] = dict(cur.fetchall())
         return Stats(
             sources=by_source,
             total_chunks=sum(by_source.values()),
@@ -212,7 +227,9 @@ class PgVectorStore:
         resolved = self._resolve_sources(sources)
 
         if not resolved:
-            return SearchResult(hits=[], lexical_ranker=ranker, dense_hit_count=0, lexical_hit_count=0)
+            return SearchResult(
+                hits=[], lexical_ranker=ranker, dense_hit_count=0, lexical_hit_count=0
+            )
 
         params = {
             "qvec": Vector(qvec),
@@ -240,8 +257,18 @@ class PgVectorStore:
                 dense_rank=dense_rank,
                 lexical_rank=lexical_rank,
             )
-            for (_id, source, rel_path, chunk_idx, context, content, lang,
-                 score, dense_rank, lexical_rank) in rows
+            for (
+                _id,
+                source,
+                rel_path,
+                chunk_idx,
+                context,
+                content,
+                lang,
+                score,
+                dense_rank,
+                lexical_rank,
+            ) in rows
         ]
 
         return SearchResult(
