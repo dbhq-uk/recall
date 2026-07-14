@@ -182,3 +182,71 @@ class PgVectorStore:
             embedding_dim=int(meta.get("embedding_dim", "0")),
             lexical_ranker=self.lexical_ranker(),
         )
+
+    POOL_MULTIPLIER = 3
+
+    def _resolve_sources(self, sources: list[str]) -> list[str]:
+        """`["*"]` means every silo. Resolve it rather than branching the SQL."""
+        if "*" not in sources:
+            return sources
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(sql.ALL_SOURCES)
+            return [r[0] for r in cur.fetchall()]
+
+    def search(
+        self,
+        qvec: list[float],
+        qtext: str,
+        sources: list[str],
+        limit: int = 10,
+        k: int = 60,
+    ) -> SearchResult:
+        """Hybrid retrieval: dense + lexical, fused by RRF, in one SQL statement.
+
+        The returned SearchResult reports which lexical ranker was actually live
+        and whether the lexical half contributed anything at all. It is never
+        allowed to look like a healthy hybrid result when it is not one.
+        """
+        ranker = self.lexical_ranker()
+        statement = sql.SEARCH_BM25 if ranker == "bm25" else sql.SEARCH_TS_RANK_CD
+        resolved = self._resolve_sources(sources)
+
+        if not resolved:
+            return SearchResult(hits=[], lexical_ranker=ranker, dense_hit_count=0, lexical_hit_count=0)
+
+        params = {
+            "qvec": Vector(qvec),
+            "qtext": qtext,
+            "sources": resolved,
+            "pool": limit * self.POOL_MULTIPLIER,
+            "k": k,
+            "limit": limit,
+        }
+
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(statement, params)
+            rows = cur.fetchall()
+
+        hits = [
+            SearchHit(
+                chunk_id=f"{source}:{rel_path}:{chunk_idx}",
+                source=source,
+                rel_path=rel_path,
+                chunk_idx=chunk_idx,
+                context=context,
+                content=content,
+                lang=lang,
+                score=float(score),
+                dense_rank=dense_rank,
+                lexical_rank=lexical_rank,
+            )
+            for (_id, source, rel_path, chunk_idx, context, content, lang,
+                 score, dense_rank, lexical_rank) in rows
+        ]
+
+        return SearchResult(
+            hits=hits,
+            lexical_ranker=ranker,
+            dense_hit_count=sum(1 for h in hits if h.dense_rank is not None),
+            lexical_hit_count=sum(1 for h in hits if h.lexical_rank is not None),
+        )
