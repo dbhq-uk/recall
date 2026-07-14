@@ -75,3 +75,38 @@ def test_mrr_of_a_total_miss_is_zero():
 
 def test_mrr_takes_the_best_when_several_are_relevant():
     assert mrr(["a", "b", "c"], {"b", "c"}) == pytest.approx(1 / 2)
+
+
+def test_harness_report_shape():
+    """The harness must always report all three arms, or a reader could mistake a
+    dense-only number for a hybrid one."""
+    from eval.harness import ArmScore, Report
+
+    r = Report(
+        lexical_ranker="bm25",
+        k=60,
+        arms={
+            "dense": ArmScore(recall_at_10=0.5, mrr=0.4, n=40),
+            "lexical": ArmScore(recall_at_10=0.6, mrr=0.5, n=40),
+            "hybrid": ArmScore(recall_at_10=0.8, mrr=0.7, n=40),
+        },
+        by_kind={},
+    )
+    assert set(r.arms) == {"dense", "lexical", "hybrid"}
+    assert r.fusion_is_earning_its_keep is True
+
+
+def test_harness_says_so_when_fusion_is_NOT_earning_its_keep():
+    from eval.harness import ArmScore, Report
+
+    r = Report(
+        lexical_ranker="bm25",
+        k=60,
+        arms={
+            "dense": ArmScore(recall_at_10=0.9, mrr=0.8, n=40),
+            "lexical": ArmScore(recall_at_10=0.6, mrr=0.5, n=40),
+            "hybrid": ArmScore(recall_at_10=0.85, mrr=0.7, n=40),  # worse than dense alone
+        },
+        by_kind={},
+    )
+    assert r.fusion_is_earning_its_keep is False
