@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import functools
+
 from pathlib import Path
 
 import typer
 
-from recall.config import Registry, load_config, load_source_config
+from recall.config import Registry, load_config
 from recall.embedders import build_embedder
 from recall.errors import RecallError
 from recall.indexer import index_source
@@ -15,6 +17,21 @@ app = typer.Typer(
     help="Local-first hybrid retrieval for coding agents.",
     no_args_is_help=True,
 )
+
+
+def honest_failure(fn):
+    """Every RecallError becomes a clean message and a non-zero exit — never a
+    traceback. Centralised so no command can forget it."""
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except RecallError as exc:
+            typer.echo(str(exc))
+            raise typer.Exit(code=1) from exc
+
+    return wrapper
 
 
 def _build_embedder_for(config):
@@ -28,21 +45,14 @@ def _store() -> PgVectorStore:
     return PgVectorStore(load_config().database_url)
 
 
-def _fail(exc: Exception) -> None:
-    typer.echo(str(exc))
-    raise typer.Exit(code=1)
-
-
 @app.command()
+@honest_failure
 def init() -> None:
     """Create the schema. The embedding model is fixed here, for the life of the DB."""
     config = load_config()
     embedder = _build_embedder_for(config)
     store = _store()
-    try:
-        store.init(dim=embedder.dim, model=embedder.name, provider=config.embedding_provider)
-    except RecallError as exc:
-        _fail(exc)
+    store.init(dim=embedder.dim, model=embedder.name, provider=config.embedding_provider)
 
     typer.echo(
         f"Database initialised.\n"
@@ -54,30 +64,26 @@ def init() -> None:
 
 
 @app.command()
+@honest_failure
 def register(path: Path) -> None:
     """Map a source's tag to its path on THIS machine."""
-    try:
-        tag = Registry.load().register(path)
-    except RecallError as exc:
-        _fail(exc)
+    tag = Registry.load().register(path)
     typer.echo(f"Registered {tag!r} -> {path.resolve()}")
 
 
 @app.command()
+@honest_failure
 def index(tag: str, force: bool = typer.Option(False, "--force")) -> None:
     """Index a source. Slow and mutating, which is why it is a CLI command and
     not something an agent can trigger mid-conversation."""
     config = load_config()
-    try:
-        report = index_source(
-            tag,
-            registry=Registry.load(),
-            store=_store(),
-            embedder=_build_embedder_for(config),
-            force=force,
-        )
-    except RecallError as exc:
-        _fail(exc)
+    report = index_source(
+        tag,
+        registry=Registry.load(),
+        store=_store(),
+        embedder=_build_embedder_for(config),
+        force=force,
+    )
 
     typer.echo(
         f"Indexed {report.tag}: {report.chunks_written} chunks from "
@@ -87,30 +93,26 @@ def index(tag: str, force: bool = typer.Option(False, "--force")) -> None:
 
 
 @app.command()
+@honest_failure
 def reindex(tag: str) -> None:
     """Drop this source's chunks and rebuild. A rebuild is always correct."""
     store = _store()
-    try:
-        store.delete_source(tag)
-        report = index_source(
-            tag,
-            registry=Registry.load(),
-            store=store,
-            embedder=_build_embedder_for(load_config()),
-            force=True,
-        )
-    except RecallError as exc:
-        _fail(exc)
+    store.delete_source(tag)
+    report = index_source(
+        tag,
+        registry=Registry.load(),
+        store=store,
+        embedder=_build_embedder_for(load_config()),
+        force=True,
+    )
     typer.echo(f"Reindexed {report.tag}: {report.chunks_written} chunks from {report.files_indexed} files")
 
 
 @app.command()
+@honest_failure
 def sources() -> None:
     """What is indexed: tag, chunk count, and where it lives on this machine."""
-    try:
-        stats = _store().stats()
-    except RecallError as exc:
-        _fail(exc)
+    stats = _store().stats()
 
     registry = Registry.load()
     if not stats.sources:
@@ -126,6 +128,7 @@ def sources() -> None:
 
 
 @app.command()
+@honest_failure
 def doctor() -> None:
     """Health check. Reports which lexical ranker is ACTUALLY live, and warns on
     the fallback. recall would rather be embarrassing than quietly wrong."""

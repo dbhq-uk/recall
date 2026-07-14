@@ -98,3 +98,26 @@ def test_doctor_reports_the_database_and_the_model():
     runner.invoke(app, ["init"])
     result = runner.invoke(app, ["doctor"])
     assert "fake" in result.stdout  # the configured embedding model
+
+
+def test_a_bad_embedding_provider_is_a_clean_error_not_a_traceback(monkeypatch):
+    # The autouse fake_embedder fixture replaces recall.cli.build_embedder with a
+    # stub that ignores the configured provider entirely (that is what keeps the
+    # rest of this suite off the network). Put the real one back for this test —
+    # otherwise there is nothing here to raise ConfigError in the first place.
+    from recall.embedders import build_embedder as real_build_embedder
+
+    monkeypatch.setattr("recall.cli.build_embedder", real_build_embedder)
+    monkeypatch.setenv("RECALL_EMBEDDING_PROVIDER", "bogus")
+    result = runner.invoke(app, ["init"])
+    assert result.exit_code == 1
+    assert "bogus" in result.stdout
+    assert "Traceback" not in result.stdout
+
+
+def test_a_bad_rrf_k_is_a_clean_error_not_a_traceback(monkeypatch):
+    monkeypatch.setenv("RECALL_RRF_K", "not-a-number")
+    result = runner.invoke(app, ["doctor"])
+    assert result.exit_code == 1
+    assert "rrf_k" in result.stdout
+    assert "Traceback" not in result.stdout

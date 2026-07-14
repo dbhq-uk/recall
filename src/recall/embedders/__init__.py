@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 from recall.config import RecallConfig
+from recall.errors import ConfigError
 
 
 @runtime_checkable
@@ -31,7 +32,7 @@ def build_embedder(config: RecallConfig) -> Embedder:
         return OllamaEmbedder(model=config.embedding_model, endpoint=config.embedding_endpoint)
     if provider == "openai":
         return OpenAIEmbedder(model=config.embedding_model)
-    raise ValueError(
+    raise ConfigError(
         f"Unknown embedding provider {provider!r}. v1 supports: ollama, openai. "
         f"(Voyage and Gemini come later, behind the same interface.)"
     )

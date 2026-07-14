@@ -85,7 +85,10 @@ class Registry:
         f = cls._file()
         if not f.is_file():
             return cls({})
-        data = tomllib.loads(f.read_text())
+        try:
+            data = tomllib.loads(f.read_text())
+        except tomllib.TOMLDecodeError as exc:
+            raise ConfigError(f"{f} is not valid TOML: {exc}") from exc
         sources = data.get("sources", {})
         return cls({tag: Path(v["path"]) for tag, v in sources.items()})
 
@@ -124,12 +127,23 @@ class RecallConfig:
 def load_config() -> RecallConfig:
     """Config file, then env overrides. Env always wins."""
     f = config_dir() / "config.toml"
-    data: dict = tomllib.loads(f.read_text()) if f.is_file() else {}
+    data: dict = {}
+    if f.is_file():
+        try:
+            data = tomllib.loads(f.read_text())
+        except tomllib.TOMLDecodeError as exc:
+            raise ConfigError(f"{f} is not valid TOML: {exc}") from exc
     db = data.get("database", {})
     emb = data.get("embedding", {})
     search = data.get("search", {})
 
     defaults = RecallConfig()
+    raw_k = os.environ.get("RECALL_RRF_K", search.get("rrf_k", defaults.rrf_k))
+    try:
+        rrf_k = int(raw_k)
+    except (TypeError, ValueError) as exc:
+        raise ConfigError(f"rrf_k must be an integer, got {raw_k!r}") from exc
+
     return RecallConfig(
         database_url=os.environ.get("RECALL_DATABASE_URL", db.get("url", defaults.database_url)),
         embedding_provider=os.environ.get(
@@ -141,5 +155,5 @@ def load_config() -> RecallConfig:
         embedding_endpoint=os.environ.get(
             "RECALL_EMBEDDING_ENDPOINT", emb.get("endpoint", defaults.embedding_endpoint)
         ),
-        rrf_k=int(os.environ.get("RECALL_RRF_K", search.get("rrf_k", defaults.rrf_k))),
+        rrf_k=rrf_k,
     )

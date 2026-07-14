@@ -127,3 +127,21 @@ def test_load_config_has_the_designed_defaults(isolated_config):
 def test_env_overrides_beat_the_config_file(isolated_config, monkeypatch):
     monkeypatch.setenv("RECALL_DATABASE_URL", "postgresql://x@y/z")
     assert load_config().database_url == "postgresql://x@y/z"
+
+
+def test_malformed_config_toml_is_a_clean_error_not_a_traceback(isolated_config):
+    (isolated_config / "config.toml").write_text("this is not valid toml [[[")
+    with pytest.raises(ConfigError, match="not valid TOML"):
+        load_config()
+
+
+def test_malformed_registry_toml_is_a_clean_error_not_a_traceback(isolated_config):
+    (isolated_config / "registry.toml").write_text("also not valid toml [[[")
+    with pytest.raises(ConfigError, match="not valid TOML"):
+        Registry.load()
+
+
+def test_a_non_integer_rrf_k_is_a_clean_error_not_a_traceback(isolated_config, monkeypatch):
+    monkeypatch.setenv("RECALL_RRF_K", "not-a-number")
+    with pytest.raises(ConfigError, match="rrf_k"):
+        load_config()

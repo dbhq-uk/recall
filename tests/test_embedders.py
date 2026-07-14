@@ -7,7 +7,7 @@ from recall.embedders import build_embedder
 from recall.embedders.ollama import OllamaEmbedder
 from recall.embedders.openai import OpenAIEmbedder
 from recall.config import RecallConfig
-from recall.errors import EmbedderUnreachableError
+from recall.errors import ConfigError, EmbedderUnreachableError
 from tests.support.fake_embedder import FakeEmbedder
 
 
@@ -107,7 +107,7 @@ def test_build_embedder_defaults_to_ollama():
 
 
 def test_build_embedder_rejects_an_unknown_provider():
-    with pytest.raises(ValueError, match="voyage"):
+    with pytest.raises(ConfigError, match="voyage"):
         build_embedder(RecallConfig(embedding_provider="voyage"))
 
 
