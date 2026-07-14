@@ -2,9 +2,9 @@
 //!
 //! Scan guns talk to the gateway over a serial link using a compact
 //! framed protocol, so it can tell scans apart from heartbeats and
-//! low-battery warnings without parsing a string every time. This
-//! module is deliberately strict: a corrupted frame silently accepted
-//! as a scan posts a phantom parcel to the receiving ledger.
+//! low-battery warnings without parsing a string every time. This is
+//! deliberately strict: a corrupted frame accepted as a scan posts a
+//! phantom parcel to the receiving ledger.
 
 pub const FRAME_START_BYTE: u8 = 0x02;
 pub const FRAME_END_BYTE: u8 = 0x03;
@@ -32,9 +32,7 @@ impl std::fmt::Display for FrameError {
             Self::TooLong => write!(f, "scanner frame exceeds MAX_FRAME_LEN"),
             Self::MissingStartByte => write!(f, "scanner frame missing start byte"),
             Self::MissingEndByte => write!(f, "scanner frame missing end byte"),
-            Self::ChecksumMismatch { expected, actual } => {
-                write!(f, "checksum mismatch: expected {expected:#04x}, got {actual:#04x}")
-            }
+            Self::ChecksumMismatch { expected, actual } => write!(f, "checksum mismatch: expected {expected:#04x}, got {actual:#04x}"),
             Self::UnknownFrameKind(kind) => write!(f, "unrecognized frame kind {kind:#04x}"),
         }
     }
@@ -45,8 +43,7 @@ fn xor_checksum(bytes: &[u8]) -> u8 {
     bytes.iter().fold(0u8, |acc, b| acc ^ b)
 }
 
-/// Parses a raw serial frame into a typed `ScanEvent`, validating
-/// framing bytes and checksum before trusting the payload.
+/// Validates framing bytes and checksum before trusting the payload.
 pub fn parse_frame(raw: &[u8]) -> Result<ScanEvent, FrameError> {
     if raw.len() < 5 { return Err(FrameError::TooShort); }
     if raw.len() > MAX_FRAME_LEN { return Err(FrameError::TooLong); }
@@ -67,9 +64,8 @@ pub fn parse_frame(raw: &[u8]) -> Result<ScanEvent, FrameError> {
     }
 }
 
-/// Buffers bytes streamed off a serial connection and yields complete
-/// frames as they arrive, since a USB read can split a frame across
-/// two chunks or deliver two frames in one chunk.
+/// Buffers bytes off a serial connection and yields complete frames,
+/// since a USB read can split or merge frames across chunks.
 #[derive(Default)]
 pub struct ScannerFrameBuffer {
     pending: Vec<u8>,
@@ -80,19 +76,13 @@ impl ScannerFrameBuffer {
         self.pending.extend_from_slice(chunk);
     }
 
-    /// Extracts every complete frame buffered so far, leaving any
-    /// trailing partial frame for the next chunk to complete.
+    /// Leaves any trailing partial frame for the next chunk.
     pub fn drain_complete_frames(&mut self) -> Vec<Result<ScanEvent, FrameError>> {
         let mut results = Vec::new();
         loop {
-            let start = match self.pending.iter().position(|&b| b == FRAME_START_BYTE) {
-                Some(i) => i,
-                None => break,
-            };
-            let end = match self.pending[start..].iter().position(|&b| b == FRAME_END_BYTE) {
-                Some(offset) => start + offset,
-                None => break,
-            };
+            let Some(start) = self.pending.iter().position(|&b| b == FRAME_START_BYTE) else { break };
+            let Some(offset) = self.pending[start..].iter().position(|&b| b == FRAME_END_BYTE) else { break };
+            let end = start + offset;
             results.push(parse_frame(&self.pending[start..=end].to_vec()));
             self.pending.drain(0..=end);
         }
