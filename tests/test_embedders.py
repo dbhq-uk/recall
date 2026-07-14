@@ -1,3 +1,5 @@
+import warnings
+
 import httpx
 import pytest
 
@@ -120,7 +122,9 @@ def test_openai_reorders_embeddings_by_index(monkeypatch):
 
     monkeypatch.setattr(httpx.Client, "post", fake_post)
     e = OpenAIEmbedder(model="text-embedding-3-small", api_key="sk-test")
-    vecs = e.embed_documents(["a", "b", "c"])
+    with warnings.catch_warnings():  # the off-machine warning is tested elsewhere
+        warnings.simplefilter("ignore", UserWarning)
+        vecs = e.embed_documents(["a", "b", "c"])
     assert vecs == [[0.0] * 4, [1.0] * 4, [2.0] * 4]  # index 0,1,2 in order
 
 
