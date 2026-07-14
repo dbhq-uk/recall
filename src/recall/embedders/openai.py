@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import warnings
 
 import httpx
 
@@ -33,14 +34,22 @@ class OpenAIEmbedder:
         self.endpoint = endpoint.rstrip("/")
         self._api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
         self._timeout = timeout
+        self._warned_off_machine = False
 
     def _embed(self, inputs: list[str]) -> list[list[float]]:
         if not self._api_key:
             raise EmbedderUnreachableError(
                 "No OpenAI API key. Set OPENAI_API_KEY, or switch to the local "
-                "default with:  recall config set embedding.provider ollama\n"
-                "Note that the OpenAI embedder sends your content off this machine."
+                "default with:  recall config set embedding.provider ollama"
             )
+        if not self._warned_off_machine:
+            warnings.warn(
+                "The OpenAI embedder sends your content to api.openai.com — it does "
+                "not stay on this machine. Switch to the local default (ollama) to "
+                "keep retrieval fully local.",
+                stacklevel=2,
+            )
+            self._warned_off_machine = True
         try:
             with httpx.Client(timeout=self._timeout) as client:
                 response = client.post(
