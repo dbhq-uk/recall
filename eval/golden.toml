@@ -1,0 +1,263 @@
+# Golden query set for the `fixture` source.
+#
+# kind = "semantic" -> query shares NO significant content words with the target.
+# kind = "lexical"  -> exact term / identifier / error string.
+# kind = "hybrid"   -> needs both halves to rank correctly.
+#
+# `relevant` lists rel_paths (relative to eval/fixture/) that genuinely answer the
+# query. A hit counts as relevant if its rel_path is in this list.
+
+# ---------------------------------------------------------------------------
+# semantic (15) - the queries grep cannot serve. Deliberately phrased in
+# vocabulary the answer does not use; tests/test_golden_set.py enforces this.
+# ---------------------------------------------------------------------------
+
+[[query]]
+id = "q001"
+text = "being able to change clothes without bending double"
+kind = "semantic"
+relevant = ["travel/van/roof-conversion.md"]
+
+[[query]]
+id = "q002"
+text = "stopping the plumbing bursting in icy conditions"
+kind = "semantic"
+relevant = ["travel/van/water-system.md"]
+
+[[query]]
+id = "q003"
+text = "is it lawful to sleep in a layby north of the border"
+kind = "semantic"
+relevant = ["travel/reference/wild-camping-rules.md"]
+
+[[query]]
+id = "q004"
+text = "that terrifying zigzag ascent in a high-sided vehicle"
+kind = "semantic"
+relevant = ["travel/trips/scotland-nc500.md"]
+
+[[query]]
+id = "q005"
+text = "a handful of developers cannot babysit lots of moving parts"
+kind = "semantic"
+relevant = ["architecture/adr-001-modular-monolith.md"]
+
+[[query]]
+id = "q006"
+text = "couriers complained about repeatedly signing in again mid-shift"
+kind = "semantic"
+relevant = ["architecture/adr-003-authentication-strategy.md"]
+
+[[query]]
+id = "q007"
+text = "avoiding a swarm of duplicate work when many readers arrive together"
+kind = "semantic"
+relevant = ["architecture/caching-strategy.md"]
+
+[[query]]
+id = "q008"
+text = "reshaping a giant relation while traffic keeps flowing"
+kind = "semantic"
+relevant = ["architecture/database-migration-policy.md"]
+
+[[query]]
+id = "q009"
+text = "outsiders cannot be forced to upgrade on our schedule"
+kind = "semantic"
+relevant = ["architecture/api-versioning-policy.md"]
+
+[[query]]
+id = "q010"
+text = "a lone expert became a bottleneck and dates slipped"
+kind = "semantic"
+relevant = ["business/clients/bramwell-foss-retro.md"]
+
+[[query]]
+id = "q011"
+text = "the prospect stayed put, moving felt riskier"
+kind = "semantic"
+relevant = ["business/clients/aldermoor-pinfold-thistledown.md"]
+
+[[query]]
+id = "q012"
+text = "did paying an agency a cut beat advertising the role in-house"
+kind = "semantic"
+relevant = ["business/ops/hiring-2026.md"]
+
+[[query]]
+id = "q013"
+text = "reeked of paint stripper and refused to bubble"
+kind = "semantic"
+relevant = ["kb/sourdough-log.md"]
+
+[[query]]
+id = "q014"
+text = "persistent soreness in the tibia from increasing distance rapidly"
+kind = "semantic"
+relevant = ["kb/running-log.md"]
+
+[[query]]
+id = "q015"
+text = "keeping pinpricks of starlight from blurring"
+kind = "semantic"
+relevant = ["kb/photography-notes.md"]
+
+# ---------------------------------------------------------------------------
+# lexical (15) - exact identifiers, error strings, config keys, part numbers.
+# Nearly free for BM25; the dense half should struggle with these.
+# ---------------------------------------------------------------------------
+
+[[query]]
+id = "q016"
+text = "TariffCalculator"
+kind = "lexical"
+relevant = ["code/python/tariff_engine.py"]
+
+[[query]]
+id = "q017"
+text = "UnreachableDestinationError"
+kind = "lexical"
+relevant = ["code/python/route_optimizer.py"]
+
+[[query]]
+id = "q018"
+text = "IdempotencyKeyError"
+kind = "lexical"
+relevant = ["code/python/idempotency_store.py"]
+
+[[query]]
+id = "q019"
+text = "RetryBudgetExhaustedError"
+kind = "lexical"
+relevant = ["code/ts/backoff_scheduler.ts"]
+
+[[query]]
+id = "q020"
+text = "SlotCapacityExceededError"
+kind = "lexical"
+relevant = ["code/ts/delivery_window.ts"]
+
+[[query]]
+id = "q021"
+text = "RateCardNotFoundError"
+kind = "lexical"
+relevant = ["code/ts/carrier_rate_card.ts"]
+
+[[query]]
+id = "q022"
+text = "ErrLedgerMismatch"
+kind = "lexical"
+relevant = ["code/go/manifest_builder.go"]
+
+[[query]]
+id = "q023"
+text = "ErrStaleEvent"
+kind = "lexical"
+relevant = ["code/go/shipment_tracker.go"]
+
+[[query]]
+id = "q024"
+text = "FRAME_START_BYTE"
+kind = "lexical"
+relevant = ["code/rust/barcode_scanner.rs"]
+
+[[query]]
+id = "q025"
+text = "MAX_ACCEPTABLE_VARIANCE_CENTS"
+kind = "lexical"
+relevant = ["code/rust/ledger_reconciler.rs"]
+
+[[query]]
+id = "q026"
+text = "shared_preload_libraries"
+kind = "lexical"
+relevant = ["architecture/postgres-extensions.md"]
+
+[[query]]
+id = "q027"
+text = "ERR_MIGRATION_NO_DOWN"
+kind = "lexical"
+relevant = ["architecture/database-migration-policy.md"]
+
+[[query]]
+id = "q028"
+text = "COGNITO_USER_POOL_ID"
+kind = "lexical"
+relevant = ["architecture/adr-003-authentication-strategy.md"]
+
+[[query]]
+id = "q029"
+text = "fault code P0671"
+kind = "lexical"
+relevant = ["travel/maintenance/breakdown-notes.md"]
+
+[[query]]
+id = "q030"
+text = "policy number HPI-3391847"
+kind = "lexical"
+relevant = ["business/ops/insurance-suppliers-expenses.md"]
+
+# ---------------------------------------------------------------------------
+# hybrid (10) - a rare exact term plus a conceptual framing. These are the
+# queries that justify RRF existing at all: neither half should win alone.
+# ---------------------------------------------------------------------------
+
+[[query]]
+id = "q031"
+text = "why did we reject ChromaDB for the embedded backend"
+kind = "hybrid"
+relevant = ["architecture/adr-004-vector-store.md"]
+
+[[query]]
+id = "q032"
+text = "why does pg_cron need a full instance restart rather than a config reload"
+kind = "hybrid"
+relevant = ["architecture/postgres-extensions.md"]
+
+[[query]]
+id = "q033"
+text = "why BullMQ for webhook-triggered work but EventBridge for the nightly run"
+kind = "hybrid"
+relevant = ["architecture/adr-002-background-jobs-queue-vs-cron.md"]
+
+[[query]]
+id = "q034"
+text = "why we bonded the solar brackets with Sikaflex instead of screwing through the roof"
+kind = "hybrid"
+relevant = ["travel/van/roof-conversion.md"]
+
+[[query]]
+id = "q035"
+text = "why Thinsulate rather than PIR board for the van walls"
+kind = "hybrid"
+relevant = ["travel/van/insulation.md"]
+
+[[query]]
+id = "q036"
+text = "why the DPF warning light kept returning on short urban journeys"
+kind = "hybrid"
+relevant = ["travel/maintenance/mot-service-log.md"]
+
+[[query]]
+id = "q037"
+text = "why we left the VAT Flat Rate Scheme over the limited cost business test"
+kind = "hybrid"
+relevant = ["business/finance/vat-invoicing.md"]
+
+[[query]]
+id = "q038"
+text = "was Tom Vickers inside or outside IR35 on the Aldermoor engagement"
+kind = "hybrid"
+relevant = ["business/ops/ir35-contracts.md"]
+
+[[query]]
+id = "q039"
+text = "what the 1.4x risk buffer on a fixed-price quote is actually for"
+kind = "hybrid"
+relevant = ["business/finance/rate-card-2026.md"]
+
+[[query]]
+id = "q040"
+text = "how Sarpo Mira held up against the 2023 blight compared with Charlotte"
+kind = "hybrid"
+relevant = ["kb/allotment-plot-14b.md"]
