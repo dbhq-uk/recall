@@ -146,3 +146,24 @@ def test_deeper_heading_pops_the_trail_correctly():
     cee = [c for c in chunks if "cee prose" in c.content][0]
     assert bee.context == "A > B"
     assert cee.context == "A > C"  # B must have been popped, not accumulated
+
+
+def test_skipped_heading_levels_do_not_falsely_nest_siblings():
+    """CommonMark permits jumping ## -> #### (the real corpus does it). Two ####
+    siblings under one ## parent must not chain under each other."""
+    md = """## Parent
+
+""" + ("parent prose long enough to stand alone without merging at all here. " * 4) + """
+
+#### SiblingOne
+
+""" + ("first sibling prose, also comfortably long enough to be its own chunk. " * 4) + """
+
+#### SiblingTwo
+
+""" + ("second sibling prose, likewise long enough to avoid the merge floor. " * 4)
+    chunks = chunk_markdown(md, **KW)
+    one = [c for c in chunks if "first sibling" in c.content][0]
+    two = [c for c in chunks if "second sibling" in c.content][0]
+    assert one.context == "Parent > SiblingOne"
+    assert two.context == "Parent > SiblingTwo"  # NOT "Parent > SiblingOne > SiblingTwo"

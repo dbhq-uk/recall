@@ -37,7 +37,7 @@ def _split_sections(text: str) -> list[_Section]:
     contains a shell snippet.
     """
     sections: list[_Section] = []
-    trail: list[str] = []
+    stack: list[tuple[int, str]] = []
     current = _Section(trail=[], lines=[])
     fence: str | None = None
 
@@ -57,9 +57,10 @@ def _split_sections(text: str) -> list[_Section]:
             if current.body:
                 sections.append(current)
             level, title = len(m.group(1)), m.group(2)
-            trail = trail[: level - 1]
-            trail.append(title)
-            current = _Section(trail=list(trail), lines=[])
+            while stack and stack[-1][0] >= level:
+                stack.pop()
+            stack.append((level, title))
+            current = _Section(trail=[t for _, t in stack], lines=[])
             continue
 
         current.lines.append(line)
