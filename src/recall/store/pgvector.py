@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import psycopg
+from pgvector import Vector
 from pgvector.psycopg import register_vector
 
 from recall.errors import DimensionMismatchError, StoreNotInitialisedError
-from recall.models import LexicalRanker
+from recall.models import Chunk, LexicalRanker, SearchHit, SearchResult, Stats
 from recall.store import sql
 
 
@@ -104,3 +105,80 @@ class PgVectorStore:
         stored_dim = int(meta.get("embedding_dim", "0"))
         if stored_model != model or stored_dim != dim:
             raise DimensionMismatchError(stored_model, stored_dim, model, dim)
+
+    def upsert(self, chunks: list[Chunk]) -> None:
+        if not chunks:
+            return
+        rows = [
+            (
+                c.source, c.rel_path, c.chunk_idx, c.content, c.context,
+                c.lang, c.file_sha, Vector(c.embedding),
+            )
+            for c in chunks
+        ]
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.executemany(
+                """
+                INSERT INTO chunks
+                    (source, rel_path, chunk_idx, content, context, lang, file_sha, embedding)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (source, rel_path, chunk_idx) DO UPDATE SET
+                    content    = EXCLUDED.content,
+                    context    = EXCLUDED.context,
+                    lang       = EXCLUDED.lang,
+                    file_sha   = EXCLUDED.file_sha,
+                    embedding  = EXCLUDED.embedding,
+                    indexed_at = now()
+                """,
+                rows,
+            )
+            conn.commit()
+
+    def delete_source(self, tag: str) -> None:
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM chunks WHERE source = %s", (tag,))
+            conn.commit()
+
+    def delete_file(self, tag: str, rel_path: str) -> None:
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM chunks WHERE source = %s AND rel_path = %s", (tag, rel_path)
+            )
+            conn.commit()
+
+    def prune(self, tag: str, seen: set[str]) -> int:
+        """Delete chunks whose files have disappeared from the source.
+
+        This, plus the file_sha skip, IS the freshness strategy. No Merkle trees,
+        no content-addressed caches, no file watcher.
+        """
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM chunks WHERE source = %s AND NOT (rel_path = ANY(%s))",
+                (tag, list(seen)),
+            )
+            removed = cur.rowcount
+            conn.commit()
+        return removed
+
+    def file_shas(self, tag: str) -> dict[str, str]:
+        """rel_path -> file_sha for everything currently indexed under this tag."""
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT DISTINCT rel_path, file_sha FROM chunks WHERE source = %s", (tag,)
+            )
+            return dict(cur.fetchall())
+
+    def stats(self) -> Stats:
+        meta = self._meta()
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(sql.STATS_BY_SOURCE)
+            by_source = dict(cur.fetchall())
+        return Stats(
+            sources=by_source,
+            total_chunks=sum(by_source.values()),
+            embedding_provider=meta.get("embedding_provider", "unknown"),
+            embedding_model=meta.get("embedding_model", "unknown"),
+            embedding_dim=int(meta.get("embedding_dim", "0")),
+            lexical_ranker=self.lexical_ranker(),
+        )
