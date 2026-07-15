@@ -279,7 +279,7 @@ Each of these is a deliberate, reported failure rather than a silent one.
 
 ## Provenance
 
-recall is a clean-room design. It is derived from published information-retrieval literature (Reciprocal Rank Fusion: Cormack, Clarke and Buettcher, 2009; BM25: Robertson and Spärck Jones) and from the public documentation of pgvector, Postgres, LanceDB, Ollama and MCP. No third-party source code was copied or adapted. The techniques it uses are standard and unencumbered.
+recall draws on published information-retrieval literature (Reciprocal Rank Fusion: Cormack, Clarke and Buettcher, 2009; BM25: Robertson and Spärck Jones), on the public documentation of pgvector, Postgres, ParadeDB pg_search, LanceDB, Ollama and MCP, and on the wider prior art in code- and note-retrieval tooling. The techniques it uses — rank fusion, dense + lexical hybrid retrieval, heading-aware chunking — are standard and unencumbered. Its own code is original to this repository.
 
 ## Open questions
 

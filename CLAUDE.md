@@ -16,13 +16,14 @@ DBHQ Consulting Ltd. MIT. `github.com/dbhq-uk/recall`.
 
 ## Hard constraints
 
-**Clean room — absolute.** Do not read, clone, fetch, or reference
-`zilliztech/claude-context`, `danielbowne/claude-context`, or any fork of either,
-at any point, for any reason. Do not copy code from any third-party project. For
-how something is done, go to the primary source: pgvector docs, Postgres FTS
-docs, ParadeDB pg_search docs, the MCP Python SDK, the Ollama API docs, or the
-RRF paper (Cormack, Clarke & Buettcher, 2009). Nothing in this repo may derive
-from another project's source.
+**Prior art is fair game; our code stays our own.** Study whatever helps —
+other retrieval tools (including `claude-context` and its forks), vendor docs,
+papers. Borrow ideas and approaches freely. What we do not do is paste in
+another project's source verbatim: recall's own implementation is written here,
+so the repo stays cleanly licensable under MIT. For mechanism, still prefer the
+primary source — pgvector docs, Postgres FTS docs, ParadeDB pg_search docs, the
+MCP Python SDK, the Ollama API docs, the RRF paper (Cormack, Clarke & Buettcher,
+2009) — because it is more reliable than reading it out of someone's codebase.
 
 **No absolute paths in the store.** Every chunk is identified by
 `{tag}:{rel_path}:{chunk_idx}`. A path is a machine-local accident; a tag is the
