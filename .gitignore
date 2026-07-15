@@ -34,3 +34,7 @@ node_modules/
 
 # SDD scratch (ledger, task briefs, review packages)
 .superpowers/
+
+# Private real-corpus evaluation (brain, divorce). Contains query text and file
+# paths from personal notes. MUST NEVER be committed - this repo goes public.
+eval/private/
