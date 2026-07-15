@@ -126,6 +126,7 @@ def test_load_config_has_the_designed_defaults(isolated_config):
     assert cfg.rrf_k == 10
     assert cfg.fusion_weight_dense == pytest.approx(0.7)
     assert cfg.fusion_weight_lexical == pytest.approx(0.3)
+    assert cfg.embedding_timeout == pytest.approx(300.0)
 
 
 def test_env_overrides_beat_the_config_file(isolated_config, monkeypatch):
@@ -194,4 +195,25 @@ def test_both_fusion_weights_zero_is_a_clean_error_not_a_traceback(isolated_conf
     monkeypatch.setenv("RECALL_FUSION_WEIGHT_DENSE", "0")
     monkeypatch.setenv("RECALL_FUSION_WEIGHT_LEXICAL", "0")
     with pytest.raises(ConfigError, match="fusion_weight"):
+        load_config()
+
+
+def test_embedding_timeout_env_override(isolated_config, monkeypatch):
+    monkeypatch.setenv("RECALL_EMBEDDING_TIMEOUT", "600")
+    assert load_config().embedding_timeout == pytest.approx(600.0)
+
+
+def test_a_non_float_embedding_timeout_is_a_clean_error_not_a_traceback(
+    isolated_config, monkeypatch
+):
+    monkeypatch.setenv("RECALL_EMBEDDING_TIMEOUT", "not-a-number")
+    with pytest.raises(ConfigError, match="embedding_timeout"):
+        load_config()
+
+
+def test_a_non_positive_embedding_timeout_is_a_clean_error_not_a_traceback(
+    isolated_config, monkeypatch
+):
+    monkeypatch.setenv("RECALL_EMBEDDING_TIMEOUT", "0")
+    with pytest.raises(ConfigError, match="embedding_timeout"):
         load_config()

@@ -9,7 +9,7 @@ DOCUMENT_PREFIX = "search_document: "
 QUERY_PREFIX = "search_query: "
 
 KNOWN_DIMS = {"nomic-embed-text": 768}
-DEFAULT_TIMEOUT = 120.0  # CPU-only boxes are slow; a timeout here is not an error.
+DEFAULT_TIMEOUT = 300.0  # CPU-only boxes are slow; a timeout here is not an error.
 
 
 class OllamaEmbedder:

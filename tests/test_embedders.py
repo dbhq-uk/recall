@@ -173,6 +173,22 @@ def test_build_embedder_can_build_openai(monkeypatch):
     assert e.name == "openai:text-embedding-3-small"
 
 
+def test_build_embedder_passes_the_configured_timeout_to_ollama():
+    e = build_embedder(RecallConfig(embedding_provider="ollama", embedding_timeout=42.0))
+    assert e._timeout == pytest.approx(42.0)
+
+
+def test_build_embedder_passes_the_configured_timeout_to_openai():
+    e = build_embedder(
+        RecallConfig(
+            embedding_provider="openai",
+            embedding_model="text-embedding-3-small",
+            embedding_timeout=42.0,
+        )
+    )
+    assert e._timeout == pytest.approx(42.0)
+
+
 @pytest.mark.ollama
 def test_REAL_ollama_returns_768_dimensions():
     """Integration. Requires a live Ollama with nomic-embed-text pulled."""

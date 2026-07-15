@@ -29,9 +29,13 @@ def build_embedder(config: RecallConfig) -> Embedder:
 
     provider = config.embedding_provider
     if provider == "ollama":
-        return OllamaEmbedder(model=config.embedding_model, endpoint=config.embedding_endpoint)
+        return OllamaEmbedder(
+            model=config.embedding_model,
+            endpoint=config.embedding_endpoint,
+            timeout=config.embedding_timeout,
+        )
     if provider == "openai":
-        return OpenAIEmbedder(model=config.embedding_model)
+        return OpenAIEmbedder(model=config.embedding_model, timeout=config.embedding_timeout)
     raise ConfigError(
         f"Unknown embedding provider {provider!r}. v1 supports: ollama, openai. "
         f"(Voyage and Gemini come later, behind the same interface.)"

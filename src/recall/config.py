@@ -133,6 +133,9 @@ class RecallConfig:
     # harness and read the actual numbers rather than trusting this comment.
     fusion_weight_dense: float = 0.7
     fusion_weight_lexical: float = 0.3
+    # CPU-only boxes are slow; a batch of large chunks can take minutes to embed.
+    # A timeout that fires on a healthy-but-slow machine is a false honest-failure.
+    embedding_timeout: float = 300.0
 
 
 def load_config() -> RecallConfig:
@@ -188,6 +191,19 @@ def load_config() -> RecallConfig:
             "(a zero/zero weighting returns nothing meaningful)"
         )
 
+    raw_timeout = os.environ.get(
+        "RECALL_EMBEDDING_TIMEOUT", emb.get("timeout", defaults.embedding_timeout)
+    )
+    try:
+        embedding_timeout = float(raw_timeout)
+    except (TypeError, ValueError) as exc:
+        raise ConfigError(f"embedding_timeout must be a number, got {raw_timeout!r}") from exc
+
+    if not math.isfinite(embedding_timeout) or embedding_timeout <= 0:
+        raise ConfigError(
+            f"embedding_timeout must be a finite number > 0, got {embedding_timeout!r}"
+        )
+
     return RecallConfig(
         database_url=os.environ.get("RECALL_DATABASE_URL", db.get("url", defaults.database_url)),
         embedding_provider=os.environ.get(
@@ -202,4 +218,5 @@ def load_config() -> RecallConfig:
         rrf_k=rrf_k,
         fusion_weight_dense=fusion_weight_dense,
         fusion_weight_lexical=fusion_weight_lexical,
+        embedding_timeout=embedding_timeout,
     )
