@@ -215,8 +215,17 @@ class PgVectorStore:
         sources: list[str],
         limit: int = 10,
         k: int = 60,
+        w_dense: float = 1.0,
+        w_lexical: float = 1.0,
     ) -> SearchResult:
-        """Hybrid retrieval: dense + lexical, fused by RRF, in one SQL statement.
+        """Hybrid retrieval: dense + lexical, fused by a weighted convex combination
+        of RRF terms, in one SQL statement.
+
+        The defaults (w_dense=1.0, w_lexical=1.0) reproduce textbook,
+        unweighted RRF exactly (Cormack, Clarke and Buettcher, 2009) — the store
+        is a mechanism, not a policy. The dense-leaning default weighting
+        (w_dense=0.7, w_lexical=0.3) lives in RecallConfig and is passed in by
+        callers that have loaded config.
 
         The returned SearchResult reports which lexical ranker was actually live
         and whether the lexical half contributed anything at all. It is never
@@ -238,6 +247,8 @@ class PgVectorStore:
             "pool": limit * self.POOL_MULTIPLIER,
             "k": k,
             "limit": limit,
+            "w_dense": w_dense,
+            "w_lexical": w_lexical,
         }
 
         with self._connect() as conn, conn.cursor() as cur:
@@ -312,9 +323,7 @@ class PgVectorStore:
             return []
         ranker = self.lexical_ranker()
         statement = (
-            sql.SEARCH_LEXICAL_ONLY_BM25
-            if ranker == "bm25"
-            else sql.SEARCH_LEXICAL_ONLY_TS_RANK_CD
+            sql.SEARCH_LEXICAL_ONLY_BM25 if ranker == "bm25" else sql.SEARCH_LEXICAL_ONLY_TS_RANK_CD
         )
         with self._connect() as conn, conn.cursor() as cur:
             cur.execute(statement, {"qtext": qtext, "sources": resolved, "limit": limit})

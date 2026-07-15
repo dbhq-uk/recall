@@ -123,7 +123,9 @@ def test_load_config_has_the_designed_defaults(isolated_config):
     assert cfg.embedding_provider == "ollama"
     assert cfg.embedding_model == "nomic-embed-text"
     assert cfg.embedding_endpoint == "http://localhost:11434"
-    assert cfg.rrf_k == 60
+    assert cfg.rrf_k == 10
+    assert cfg.fusion_weight_dense == pytest.approx(0.7)
+    assert cfg.fusion_weight_lexical == pytest.approx(0.3)
 
 
 def test_env_overrides_beat_the_config_file(isolated_config, monkeypatch):
@@ -146,4 +148,50 @@ def test_malformed_registry_toml_is_a_clean_error_not_a_traceback(isolated_confi
 def test_a_non_integer_rrf_k_is_a_clean_error_not_a_traceback(isolated_config, monkeypatch):
     monkeypatch.setenv("RECALL_RRF_K", "not-a-number")
     with pytest.raises(ConfigError, match="rrf_k"):
+        load_config()
+
+
+def test_fusion_weight_env_overrides_beat_the_config_file(isolated_config, monkeypatch):
+    monkeypatch.setenv("RECALL_FUSION_WEIGHT_DENSE", "0.7")
+    monkeypatch.setenv("RECALL_FUSION_WEIGHT_LEXICAL", "0.3")
+    cfg = load_config()
+    assert cfg.fusion_weight_dense == pytest.approx(0.7)
+    assert cfg.fusion_weight_lexical == pytest.approx(0.3)
+
+
+def test_fusion_weights_come_from_the_search_section_of_the_config_file(isolated_config):
+    (isolated_config / "config.toml").write_text(
+        "[search]\nweight_dense = 0.6\nweight_lexical = 0.4\n"
+    )
+    cfg = load_config()
+    assert cfg.fusion_weight_dense == pytest.approx(0.6)
+    assert cfg.fusion_weight_lexical == pytest.approx(0.4)
+
+
+def test_a_non_float_fusion_weight_dense_is_a_clean_error_not_a_traceback(
+    isolated_config, monkeypatch
+):
+    monkeypatch.setenv("RECALL_FUSION_WEIGHT_DENSE", "not-a-number")
+    with pytest.raises(ConfigError, match="fusion_weight_dense"):
+        load_config()
+
+
+def test_a_non_float_fusion_weight_lexical_is_a_clean_error_not_a_traceback(
+    isolated_config, monkeypatch
+):
+    monkeypatch.setenv("RECALL_FUSION_WEIGHT_LEXICAL", "not-a-number")
+    with pytest.raises(ConfigError, match="fusion_weight_lexical"):
+        load_config()
+
+
+def test_a_negative_fusion_weight_is_a_clean_error_not_a_traceback(isolated_config, monkeypatch):
+    monkeypatch.setenv("RECALL_FUSION_WEIGHT_DENSE", "-0.1")
+    with pytest.raises(ConfigError, match="fusion_weight_dense"):
+        load_config()
+
+
+def test_both_fusion_weights_zero_is_a_clean_error_not_a_traceback(isolated_config, monkeypatch):
+    monkeypatch.setenv("RECALL_FUSION_WEIGHT_DENSE", "0")
+    monkeypatch.setenv("RECALL_FUSION_WEIGHT_LEXICAL", "0")
+    with pytest.raises(ConfigError, match="fusion_weight"):
         load_config()

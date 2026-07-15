@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 import tomllib
 from dataclasses import dataclass, field
@@ -121,7 +122,17 @@ class RecallConfig:
     embedding_provider: str = "ollama"
     embedding_model: str = "nomic-embed-text"
     embedding_endpoint: str = "http://localhost:11434"
-    rrf_k: int = 60
+    rrf_k: int = 10
+    # Convex-combination fusion weights (see store/sql.py for the formula).
+    # Equal-weight RRF, measured against the golden set, loses to dense-only
+    # retrieval on this corpus (see eval/harness.py). The IR literature
+    # (Elastic's weighted-RRF write-up; alpha typically 0.3-0.7) supports a
+    # moderate dense lean for prose/conceptual queries, so that is the
+    # default here — a generalisation of RRF, not a fixture-specific tune.
+    # It will not necessarily beat every half on every corpus; run the
+    # harness and read the actual numbers rather than trusting this comment.
+    fusion_weight_dense: float = 0.7
+    fusion_weight_lexical: float = 0.3
 
 
 def load_config() -> RecallConfig:
@@ -144,6 +155,39 @@ def load_config() -> RecallConfig:
     except (TypeError, ValueError) as exc:
         raise ConfigError(f"rrf_k must be an integer, got {raw_k!r}") from exc
 
+    raw_w_dense = os.environ.get(
+        "RECALL_FUSION_WEIGHT_DENSE", search.get("weight_dense", defaults.fusion_weight_dense)
+    )
+    try:
+        fusion_weight_dense = float(raw_w_dense)
+    except (TypeError, ValueError) as exc:
+        raise ConfigError(f"fusion_weight_dense must be a number, got {raw_w_dense!r}") from exc
+
+    raw_w_lexical = os.environ.get(
+        "RECALL_FUSION_WEIGHT_LEXICAL",
+        search.get("weight_lexical", defaults.fusion_weight_lexical),
+    )
+    try:
+        fusion_weight_lexical = float(raw_w_lexical)
+    except (TypeError, ValueError) as exc:
+        raise ConfigError(f"fusion_weight_lexical must be a number, got {raw_w_lexical!r}") from exc
+
+    if not math.isfinite(fusion_weight_dense) or not math.isfinite(fusion_weight_lexical):
+        raise ConfigError(
+            "fusion_weight_dense and fusion_weight_lexical must be finite numbers, got "
+            f"dense={fusion_weight_dense!r} lexical={fusion_weight_lexical!r}"
+        )
+    if fusion_weight_dense < 0 or fusion_weight_lexical < 0:
+        raise ConfigError(
+            "fusion_weight_dense and fusion_weight_lexical must be >= 0, got "
+            f"dense={fusion_weight_dense!r} lexical={fusion_weight_lexical!r}"
+        )
+    if fusion_weight_dense == 0 and fusion_weight_lexical == 0:
+        raise ConfigError(
+            "fusion_weight_dense and fusion_weight_lexical cannot both be zero "
+            "(a zero/zero weighting returns nothing meaningful)"
+        )
+
     return RecallConfig(
         database_url=os.environ.get("RECALL_DATABASE_URL", db.get("url", defaults.database_url)),
         embedding_provider=os.environ.get(
@@ -156,4 +200,6 @@ def load_config() -> RecallConfig:
             "RECALL_EMBEDDING_ENDPOINT", emb.get("endpoint", defaults.embedding_endpoint)
         ),
         rrf_k=rrf_k,
+        fusion_weight_dense=fusion_weight_dense,
+        fusion_weight_lexical=fusion_weight_lexical,
     )

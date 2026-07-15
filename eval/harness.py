@@ -17,7 +17,7 @@ real agent would use (10, by default) — not some oversized pool that hands
 rank-credit to hundreds of chunks no agent would ever see.
 
 Run:
-    python -m eval.harness              # score at k=60, limit=10
+    python -m eval.harness              # score at the configured k/weights, limit=10
     python -m eval.harness --sweep      # sweep k and find the best
 """
 
@@ -87,8 +87,7 @@ class Report:
         """
         hybrid = self.arms["hybrid"].recall_at_10
         return (
-            hybrid > self.arms["dense"].recall_at_10
-            and hybrid > self.arms["lexical"].recall_at_10
+            hybrid > self.arms["dense"].recall_at_10 and hybrid > self.arms["lexical"].recall_at_10
         )
 
     @property
@@ -103,11 +102,30 @@ class Report:
         return self.aggregate_wins and not self.losing_kinds
 
 
-def score(k: int = 60, limit: int = PRODUCTION_LIMIT) -> Report:
+def score(
+    k: int | None = None,
+    limit: int = PRODUCTION_LIMIT,
+    w_dense: float | None = None,
+    w_lexical: float | None = None,
+) -> Report:
+    """Score all three arms against the golden set.
+
+    k/w_dense/w_lexical default to None, which means "whatever RecallConfig
+    says" — so the default run (no args) reflects the shipped, honest config,
+    and a sweep can still override any of them to explore the space.
+
+    The hybrid arm calls store.search(...) directly — exactly what a
+    production recall_search call gets back, weighted fusion included — never
+    eval.metrics.fuse() (which stays equal-weight, a pure unit-test helper).
+    """
     queries = tomllib.loads(GOLDEN.read_text())["query"]
     config = load_config()
     embedder = build_embedder(config)
     store = PgVectorStore(config.database_url)
+
+    resolved_k = config.rrf_k if k is None else k
+    resolved_w_dense = config.fusion_weight_dense if w_dense is None else w_dense
+    resolved_w_lexical = config.fusion_weight_lexical if w_lexical is None else w_lexical
 
     raw: dict[str, list[tuple[str, list[str], set[str]]]] = defaultdict(list)
 
@@ -116,7 +134,13 @@ def score(k: int = 60, limit: int = PRODUCTION_LIMIT) -> Report:
         relevant = set(q["relevant"])
 
         hybrid_result = store.search(
-            qvec=qvec, qtext=q["text"], sources=SOURCES, limit=limit, k=k
+            qvec=qvec,
+            qtext=q["text"],
+            sources=SOURCES,
+            limit=limit,
+            k=resolved_k,
+            w_dense=resolved_w_dense,
+            w_lexical=resolved_w_lexical,
         )
         rankings = {
             "dense": store.search_dense_only(qvec=qvec, sources=SOURCES, limit=limit),
@@ -143,7 +167,11 @@ def score(k: int = 60, limit: int = PRODUCTION_LIMIT) -> Report:
     }
 
     return Report(
-        lexical_ranker=store.lexical_ranker(), k=k, arms=arms, by_kind=by_kind, limit=limit
+        lexical_ranker=store.lexical_ranker(),
+        k=resolved_k,
+        arms=arms,
+        by_kind=by_kind,
+        limit=limit,
     )
 
 
@@ -180,19 +208,24 @@ def _print(report: Report) -> None:
         )
     else:
         print(
-            "  Fusion beats both halves, in aggregate and on every kind. "
-            "RRF is earning its keep."
+            "  Fusion beats both halves, in aggregate and on every kind. RRF is earning its keep."
         )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--k", type=int, default=60)
+    parser.add_argument("--k", type=int, default=None, help="override rrf_k; defaults to config")
     parser.add_argument("--limit", type=int, default=PRODUCTION_LIMIT, help="chunks per arm")
     parser.add_argument("--sweep", action="store_true", help="sweep k and report the best")
     args = parser.parse_args()
 
     if not args.sweep:
+        cfg = load_config()
+        print(
+            f"fusion weights: w_dense={cfg.fusion_weight_dense}   "
+            f"w_lexical={cfg.fusion_weight_lexical}   "
+            f"(rrf_k default={cfg.rrf_k}, overridden here: {args.k is not None})"
+        )
         _print(score(k=args.k, limit=args.limit))
         return
 

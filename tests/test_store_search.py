@@ -167,6 +167,111 @@ def test_a_doc_both_halves_found_beats_a_doc_only_one_found(store_factory):
     assert ranked.index("both.md") < ranked.index("dense_only.md")
 
 
+def test_w_dense_1_w_lexical_0_reproduces_dense_only_ranking(store_factory, corpus):
+    """The convex combination is a generalisation: at the w_dense=1/w_lexical=0
+    extreme, the lexical half contributes nothing and the fused ranking must
+    match the dense-only ranking exactly."""
+    store = corpus(store_factory(dim=DIM, pg_search_enabled=False))
+    qvec = vec(0, 0, 1)
+    fused = store.search(
+        qvec=qvec,
+        qtext="postgres ranking",
+        sources=["brain"],
+        limit=10,
+        k=60,
+        w_dense=1.0,
+        w_lexical=0.0,
+    )
+    dense_only = store.search_dense_only(qvec=qvec, sources=["brain"], limit=10)
+    assert [h.rel_path for h in fused.hits] == dense_only
+
+
+def test_w_dense_0_w_lexical_1_reproduces_lexical_only_ranking(store_factory):
+    """Mirror of the above: at the w_dense=0/w_lexical=1 extreme, the dense half
+    contributes nothing and the fused ranking must match the lexical-only
+    ranking exactly.
+
+    This needs its own corpus rather than the shared `corpus` fixture: the
+    dense CTE has no relevance threshold and always returns its full pool, so
+    if any candidate matched dense but NOT the lexical query, it would still
+    be smuggled into the fused result at score 0 (COALESCE'd from a NULL
+    lexical rank) — something search_lexical_only, which only returns real
+    matches, would never do. Every doc here matches the lexical query too, so
+    that smuggling can't happen and the two rankings must line up exactly.
+    """
+    store = store_factory(dim=DIM, pg_search_enabled=False)
+    store.upsert(
+        [
+            mk("c.md", "postgres ranking postgres ranking postgres ranking extra", vec(0, 0, 1)),
+            mk("b.md", "postgres ranking postgres extra", vec(0, 1, 0)),
+            mk("a.md", "postgres ranking extra", vec(1, 0, 0)),
+        ]
+    )
+    fused = store.search(
+        qvec=vec(0, 0, 1),
+        qtext="postgres ranking",
+        sources=["brain"],
+        limit=10,
+        k=60,
+        w_dense=0.0,
+        w_lexical=1.0,
+    )
+    lexical_only = store.search_lexical_only(qtext="postgres ranking", sources=["brain"], limit=10)
+    assert [h.rel_path for h in fused.hits] == lexical_only
+    assert lexical_only == ["c.md", "b.md", "a.md"]  # sanity: the ranks genuinely differ
+
+
+def test_fusion_weights_change_the_ordering(store_factory):
+    """A doc strong in dense but weak in lexical must rank higher under a
+    dense-leaning weighting than under equal weighting — this is the entire
+    point of making the weights configurable.
+
+    k=1 here (not the store/config default) is deliberate: it sharpens the
+    gap between dense rank 1 and rank 2 enough that a 0.9/0.1 split can
+    actually flip the ordering relative to 1.0/1.0. This is a mechanism test,
+    not a claim about production k or the shipped default weights.
+    """
+    store = store_factory(dim=DIM, pg_search_enabled=False)
+    store.upsert(
+        [
+            # Dense rank 1 (exact vector match). "fusion" alone does not
+            # satisfy the AND query "reciprocal & rank & fusion", so this
+            # doc gets no lexical match at all (l.rank is NULL, contributes 0).
+            mk("dense_favourite.md", "fusion", vec(1, 0, 0)),
+            # Dense rank 2 (far vector), the only lexical match (rank 1).
+            mk(
+                "lexical_favourite.md",
+                "reciprocal rank fusion reciprocal rank fusion",
+                vec(0, 0, 1),
+            ),
+        ]
+    )
+    equal = store.search(
+        qvec=vec(1, 0, 0),
+        qtext="reciprocal rank fusion",
+        sources=["brain"],
+        limit=10,
+        k=1,
+        w_dense=1.0,
+        w_lexical=1.0,
+    )
+    dense_leaning = store.search(
+        qvec=vec(1, 0, 0),
+        qtext="reciprocal rank fusion",
+        sources=["brain"],
+        limit=10,
+        k=1,
+        w_dense=0.9,
+        w_lexical=0.1,
+    )
+    equal_order = [h.rel_path for h in equal.hits]
+    dense_leaning_order = [h.rel_path for h in dense_leaning.hits]
+    assert equal_order.index("lexical_favourite.md") < equal_order.index("dense_favourite.md")
+    assert dense_leaning_order.index("dense_favourite.md") < dense_leaning_order.index(
+        "lexical_favourite.md"
+    )
+
+
 def test_k_is_a_knob_and_changing_it_changes_the_ranking(store_factory):
     """Design: k=60 is a convention, not a law. Let the golden set decide."""
     store = store_factory(dim=DIM, pg_search_enabled=False)

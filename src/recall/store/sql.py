@@ -4,8 +4,17 @@ The two fusion queries live next to each other on purpose. They are the heart of
 the product and the only difference between them is the lexical CTE, so they must
 be easy to compare by eye.
 
-RRF is per Cormack, Clarke and Buettcher (2009): a document's score is the sum of
-1/(k + rank) across the halves it appears in.
+Fusion is a weighted convex combination, generalising RRF (Cormack, Clarke and
+Buettcher, 2009): a document's score is
+w_dense * 1/(k + dense_rank) + w_lexical * 1/(k + lexical_rank), summed across
+the halves it appears in. Equal weights (w_dense == w_lexical) reproduce the
+RANKING that plain RRF would produce — the two terms are scaled identically, so
+relative order is unchanged — and w_dense == w_lexical == 1.0 reproduces the
+paper's score exactly. The golden set measured equal weighting losing to
+dense-only retrieval on this corpus; RecallConfig's default is a moderate
+dense-leaning convex combination (w_dense=0.7, w_lexical=0.3) instead, per the
+IR literature (Elastic's weighted-RRF write-up; alpha typically 0.3-0.7). See
+eval/harness.py and docs/design.md for the measured comparison.
 """
 
 SCHEMA_VERSION = "1"
@@ -112,7 +121,8 @@ lexical AS (
 
 _FUSE_TAIL = """
 SELECT c.id, c.source, c.rel_path, c.chunk_idx, c.context, c.content, c.lang,
-       COALESCE(1.0 / (%(k)s + d.rank), 0) + COALESCE(1.0 / (%(k)s + l.rank), 0) AS score,
+       %(w_dense)s * COALESCE(1.0 / (%(k)s + d.rank), 0)
+     + %(w_lexical)s * COALESCE(1.0 / (%(k)s + l.rank), 0) AS score,
        d.rank AS dense_rank,
        l.rank AS lexical_rank
 FROM chunks c
