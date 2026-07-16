@@ -6,7 +6,7 @@ import psycopg
 from pgvector import Vector
 from pgvector.psycopg import register_vector
 
-from recall.errors import DimensionMismatchError, StoreNotInitialisedError
+from recall.errors import DimensionMismatchError, RecallError, StoreNotInitialisedError
 from recall.models import Chunk, LexicalRanker, SearchHit, SearchResult, Stats
 from recall.store import sql
 
@@ -122,19 +122,28 @@ class PgVectorStore:
     def upsert(self, chunks: list[Chunk]) -> None:
         if not chunks:
             return
-        rows = [
-            (
-                c.source,
-                c.rel_path,
-                c.chunk_idx,
-                c.content,
-                c.context,
-                c.lang,
-                c.file_sha,
-                Vector(c.embedding),
+        rows = []
+        for c in chunks:
+            if c.embedding is None:
+                # Honest failure: a chunk with no vector is a bug upstream (the
+                # indexer embeds before upserting). Say so plainly rather than
+                # handing None to pgvector and getting an opaque driver error.
+                raise RecallError(
+                    f"Chunk {c.chunk_id!r} has no embedding. Chunks must be embedded "
+                    f"before they reach the store. Refusing to write a chunk with no vector."
+                )
+            rows.append(
+                (
+                    c.source,
+                    c.rel_path,
+                    c.chunk_idx,
+                    c.content,
+                    c.context,
+                    c.lang,
+                    c.file_sha,
+                    Vector(c.embedding),
+                )
             )
-            for c in chunks
-        ]
         with self._connect() as conn, conn.cursor() as cur:
             cur.executemany(
                 """

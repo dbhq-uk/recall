@@ -107,3 +107,18 @@ def test_upsert_of_an_empty_list_is_a_no_op(store_factory):
     store = store_factory()
     store.upsert([])
     assert store.stats().total_chunks == 0
+
+
+def test_upsert_REFUSES_a_chunk_with_no_embedding(store_factory):
+    """Honest failure: a chunk with no vector is an upstream bug. Say so plainly
+    rather than handing None to pgvector and getting an opaque driver error.
+    (mypy surfaced this hole once numpy's stubs tightened.)"""
+    from recall.errors import RecallError
+
+    store = store_factory()
+    bad = Chunk(
+        source="brain", rel_path="a.md", chunk_idx=0, content="body",
+        context=None, lang="markdown", file_sha="sha", embedding=None,
+    )
+    with pytest.raises(RecallError, match="no embedding"):
+        store.upsert([bad])
