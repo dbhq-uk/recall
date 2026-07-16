@@ -1,0 +1,11 @@
+{
+  "query": "Best-practice implementation for a local-first hybrid retrieval system (dense + BM25, RRF) over personal notes (prose) and code, with a strong modern dense embedder as first stage. Focus: fusion method+tuning, when cross-encoder reranking helps vs hurts, best local embedders for prose+code, chunking/contextual-retrieval.",
+  "mode": "standard",
+  "date": "2026-07-16",
+  "grounding_findings": [
+    "equal-weight RRF (k=60) loses to dense-only on our golden set; weighted convex combo (w_dense~0.9) barely wins on a semantic-skewed fixture",
+    "off-the-shelf cross-encoder rerankers (ms-marco-MiniLM-L6 and bge-reranker-base) BOTH degrade retrieval vs no-rerank hybrid and vs dense-only, across all query kinds",
+    "hypothesis: strong 2024 dense first stage (nomic-embed-text) is already good; domain-mismatched web-trained rerankers add noise",
+    "constraints: local-first, CPU-only, MIT-licensable, minimal deps, prose-first then code"
+  ]
+}

@@ -1,0 +1,4 @@
+[source]
+tag = "fixture"
+include = ["**/*.md", "**/*.py", "**/*.ts", "**/*.go", "**/*.rs"]
+exclude = ["**/node_modules/**", "**/.git/**"]

@@ -1,0 +1,306 @@
+# Golden query set for the `fixture` source.
+#
+# kind = "semantic" -> query shares NO significant content words with the target.
+# kind = "lexical"  -> exact term / identifier / error string.
+# kind = "hybrid"   -> needs both halves to rank correctly.
+#
+# `relevant` lists rel_paths (relative to eval/fixture/) that genuinely answer the
+# query. A hit counts as relevant if its rel_path is in this list.
+#
+# ---------------------------------------------------------------------------
+# A note on why this set looks the way it does.
+#
+# The first time we measured retrieval, 25 of these 40 queries scored a perfect
+# 1.000 on every arm. A query that every arm answers perfectly measures nothing:
+# it cannot tell dense from lexical from fusion, and an eval built out of them is
+# an eval you can only tune against noise.
+#
+# The cause was structural, not a bug in the queries. Almost every identifier and
+# every fact in the corpus appeared in exactly ONE file. With a single candidate
+# in the whole index, BM25 cannot be wrong and neither can cosine distance.
+#
+# So the corpus now carries deliberate distractors: changelogs, cross-references,
+# runbooks, registers and "see also" notes that MENTION a term without answering
+# the question it belongs to, plus near-miss identifiers (MAX_RETRY_BUDGET_MS
+# alongside MAX_RETRY_BUDGET) and documents on the same topic as a semantic
+# query's target that do not contain its answer.
+#
+# The rule for every query below: exactly one file genuinely answers it. The
+# distractors are plausible and wrong. Ambiguity here would not make the eval
+# harder, it would make it meaningless.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# semantic (15) - the queries grep cannot serve. Deliberately phrased in
+# vocabulary the answer does not use; tests/test_golden_set.py enforces this.
+# ---------------------------------------------------------------------------
+
+[[query]]
+id = "q001"
+text = "being able to change clothes without bending double"
+kind = "semantic"
+relevant = ["travel/van/roof-conversion.md"]
+
+[[query]]
+id = "q002"
+text = "stopping the plumbing bursting in icy conditions"
+kind = "semantic"
+relevant = ["travel/van/water-system.md"]
+
+[[query]]
+id = "q003"
+text = "is it lawful to sleep in a layby north of the border"
+kind = "semantic"
+relevant = ["travel/reference/wild-camping-rules.md"]
+
+[[query]]
+id = "q004"
+text = "that terrifying zigzag ascent in a high-sided vehicle"
+kind = "semantic"
+relevant = ["travel/trips/scotland-nc500.md"]
+
+[[query]]
+id = "q005"
+text = "a handful of developers cannot babysit lots of moving parts"
+kind = "semantic"
+relevant = ["architecture/adr-001-modular-monolith.md"]
+
+[[query]]
+id = "q006"
+text = "couriers complained about repeatedly signing in again mid-shift"
+kind = "semantic"
+relevant = ["architecture/adr-003-authentication-strategy.md"]
+
+[[query]]
+id = "q007"
+text = "avoiding a swarm of duplicate work when many readers arrive together"
+kind = "semantic"
+relevant = ["architecture/caching-strategy.md"]
+
+[[query]]
+id = "q008"
+text = "reshaping a giant relation while traffic keeps flowing"
+kind = "semantic"
+relevant = ["architecture/database-migration-policy.md"]
+
+[[query]]
+id = "q009"
+text = "outsiders cannot be forced to upgrade on our schedule"
+kind = "semantic"
+relevant = ["architecture/api-versioning-policy.md"]
+
+[[query]]
+id = "q010"
+text = "a lone expert became a bottleneck and dates slipped"
+kind = "semantic"
+relevant = ["business/clients/bramwell-foss-retro.md"]
+
+[[query]]
+id = "q011"
+text = "the prospect stayed put, moving felt riskier"
+kind = "semantic"
+relevant = ["business/clients/aldermoor-pinfold-thistledown.md"]
+
+[[query]]
+id = "q012"
+text = "did paying an agency a cut beat advertising the role in-house"
+kind = "semantic"
+relevant = ["business/ops/hiring-2026.md"]
+
+[[query]]
+id = "q013"
+text = "reeked of paint stripper and refused to bubble"
+kind = "semantic"
+relevant = ["kb/sourdough-log.md"]
+
+[[query]]
+id = "q014"
+text = "persistent soreness in the tibia from increasing distance rapidly"
+kind = "semantic"
+relevant = ["kb/running-log.md"]
+
+[[query]]
+id = "q015"
+text = "keeping pinpricks of starlight from blurring"
+kind = "semantic"
+relevant = ["kb/photography-notes.md"]
+
+# ---------------------------------------------------------------------------
+# lexical (15) - an exact identifier, error string, config key or part number.
+#
+# The term has to matter: strip it out and the query is unanswerable. But a bare
+# identifier lookup ("TariffCalculator") cannot discriminate between anything, so
+# each of these is a QUESTION that happens to contain the identifier, and each
+# identifier now appears in three or four files. The decoys - an on-call error
+# catalogue, a changelog, consumer modules that import and catch - mention the
+# term without answering the question, so ranking the true answer first takes
+# more than raw term-matching.
+# ---------------------------------------------------------------------------
+
+[[query]]
+id = "q016"
+text = "what does TariffCalculator do when no tariff band matches the HS code"
+kind = "lexical"
+relevant = ["code/python/tariff_engine.py"]
+
+[[query]]
+id = "q017"
+text = "what makes the linehaul route search raise UnreachableDestinationError"
+kind = "lexical"
+relevant = ["code/python/route_optimizer.py"]
+
+[[query]]
+id = "q018"
+text = "when is IdempotencyKeyError raised instead of RequestInFlightError"
+kind = "lexical"
+relevant = ["code/python/idempotency_store.py"]
+
+[[query]]
+id = "q019"
+text = "how many attempts are allowed before RetryBudgetExhaustedError is thrown"
+kind = "lexical"
+relevant = ["code/ts/backoff_scheduler.ts"]
+
+[[query]]
+id = "q020"
+text = "what condition throws SlotCapacityExceededError when reserving a depot slot"
+kind = "lexical"
+relevant = ["code/ts/delivery_window.ts"]
+
+[[query]]
+id = "q021"
+text = "what makes a carrier rate card lookup throw RateCardNotFoundError"
+kind = "lexical"
+relevant = ["code/ts/carrier_rate_card.ts"]
+
+[[query]]
+id = "q022"
+text = "which reconciliation checks produce ErrLedgerMismatch before a manifest is transmitted"
+kind = "lexical"
+relevant = ["code/go/manifest_builder.go"]
+
+[[query]]
+id = "q023"
+text = "why does applying a tracking event return ErrStaleEvent"
+kind = "lexical"
+relevant = ["code/go/shipment_tracker.go"]
+
+[[query]]
+id = "q024"
+text = "what byte value is FRAME_START_BYTE in the scanner frame protocol"
+kind = "lexical"
+relevant = ["code/rust/barcode_scanner.rs"]
+
+[[query]]
+id = "q025"
+text = "what happens to a variance larger than MAX_ACCEPTABLE_VARIANCE_CENTS"
+kind = "lexical"
+relevant = ["code/rust/ledger_reconciler.rs"]
+
+[[query]]
+id = "q026"
+text = "which extensions have to be named in shared_preload_libraries on the core instance"
+kind = "lexical"
+relevant = ["architecture/postgres-extensions.md"]
+
+[[query]]
+id = "q027"
+text = "what rule is being enforced when a pull request fails with ERR_MIGRATION_NO_DOWN"
+kind = "lexical"
+relevant = ["architecture/database-migration-policy.md"]
+
+[[query]]
+id = "q028"
+text = "what does COGNITO_USER_POOL_ID configure in core-api"
+kind = "lexical"
+relevant = ["architecture/adr-003-authentication-strategy.md"]
+
+[[query]]
+id = "q029"
+text = "what did we do about fault code P0671 on the van"
+kind = "lexical"
+relevant = ["travel/maintenance/breakdown-notes.md"]
+
+[[query]]
+id = "q030"
+text = "what limit of indemnity does policy number HPI-3391847 carry"
+kind = "lexical"
+relevant = ["business/ops/insurance-suppliers-expenses.md"]
+
+# ---------------------------------------------------------------------------
+# hybrid (10) - the queries that justify RRF existing at all.
+#
+# The shape each one is built to: a rare exact term that now appears in SEVERAL
+# corpus files, so the lexical half alone shortlists the wrong ones as readily as
+# the right one; plus a conceptual framing that is ambiguous without that term,
+# so the dense half alone shortlists neighbours on the same topic. Neither half
+# should win alone. Only the intersection lands on the target.
+#
+# Term multiplicity, at the time of writing (files containing the term):
+#   ChromaDB 4 | pg_cron 4 | BullMQ 5 | Sikaflex 4 | Thinsulate 4
+#   DPF 4 | "Flat Rate Scheme" 4 | "Tom Vickers" 6 | "risk buffer" 4
+#   "Sarpo Mira" 4
+#
+# If any of these ever drops back to 1, that query has quietly gone saturated
+# again and is measuring nothing. Check before trusting the number.
+# ---------------------------------------------------------------------------
+
+[[query]]
+id = "q031"
+text = "why ChromaDB was rejected for storing the incident report embeddings"
+kind = "hybrid"
+relevant = ["architecture/adr-004-vector-store.md"]
+
+[[query]]
+id = "q032"
+text = "why pg_cron cannot be switched on with a configuration reload alone"
+kind = "hybrid"
+relevant = ["architecture/postgres-extensions.md"]
+
+[[query]]
+id = "q033"
+text = "why the nightly invoice run is not simply a BullMQ repeatable job"
+kind = "hybrid"
+relevant = ["architecture/adr-002-background-jobs-queue-vs-cron.md"]
+
+[[query]]
+id = "q034"
+text = "why the solar brackets are bonded with Sikaflex rather than screwed down"
+kind = "hybrid"
+relevant = ["travel/van/roof-conversion.md"]
+
+[[query]]
+id = "q035"
+text = "why Thinsulate went into the van walls instead of PIR board"
+kind = "hybrid"
+relevant = ["travel/van/insulation.md"]
+
+[[query]]
+id = "q036"
+text = "why the DPF warning light kept coming back on short urban journeys"
+kind = "hybrid"
+relevant = ["travel/maintenance/mot-service-log.md"]
+
+[[query]]
+id = "q037"
+text = "why we left the VAT Flat Rate Scheme over the limited cost business test"
+kind = "hybrid"
+relevant = ["business/finance/vat-invoicing.md"]
+
+[[query]]
+id = "q038"
+text = "was Tom Vickers inside or outside IR35 on the Aldermoor engagement"
+kind = "hybrid"
+relevant = ["business/ops/ir35-contracts.md"]
+
+[[query]]
+id = "q039"
+text = "what the 1.4x risk buffer on a fixed-price quote is actually for"
+kind = "hybrid"
+relevant = ["business/finance/rate-card-2026.md"]
+
+[[query]]
+id = "q040"
+text = "how Sarpo Mira held up against the 2023 blight compared with Charlotte"
+kind = "hybrid"
+relevant = ["kb/allotment-plot-14b.md"]

@@ -247,6 +247,48 @@ Each of these is a deliberate, reported failure rather than a silent one.
 - **Unit:** the markdown chunker's heading trail, the code chunker's symbol boundaries, RRF arithmetic against a hand-worked example, and the path-independence invariant (index a source at one path, move it, re-register, confirm queries still resolve).
 - **Integration:** real Postgres, real pgvector, both with and without `pg_search` present, to prove the fallback path is honest.
 
+## Measured results: BEIR
+
+*(Added 16 July 2026.)* The golden query set above is ours: we wrote both
+the queries and the relevance labels, and — see `docs/eval/README.md` — it
+once said fusion loses to dense-only on our own fixture. That is a
+synthetic-eval failure mode, not necessarily a fusion failure mode: our
+fixture is small and semantic-skewed, and it is the only corpus that has
+ever seen these exact queries. So we adopted an external, un-authored
+benchmark to settle the question: [BEIR](https://github.com/beir-cellar/beir)
+(Thakur et al., 2021), which ships fixed corpora, fixed queries and
+published baselines for BM25, DPR, ANCE, TAS-B and ColBERT.
+
+**BEIR SciFact** (5,183 docs, 300 queries), NDCG@10: recall hybrid **0.711**,
+recall dense-only 0.700, ColBERT (published) 0.671, BM25 (published) 0.665,
+TAS-B (published) 0.643, recall lexical-only 0.639, ANCE (published) 0.507,
+DPR (published) 0.318.
+
+**BEIR NFCorpus** (3,633 docs, 323 queries), NDCG@10: recall hybrid
+**0.339**, BM25 (published) 0.325, recall dense-only 0.320, TAS-B
+(published) 0.319, ColBERT (published) 0.305, recall lexical-only 0.303,
+ANCE (published) 0.237, DPR (published) 0.189.
+
+**The vindication: fusion beats both halves on both datasets**
+(SciFact 0.711 > 0.700 > 0.639; NFCorpus 0.339 > 0.320 > 0.303), and
+recall's hybrid beats the published BM25 baseline on both (+0.046 SciFact,
++0.014 NFCorpus). This confirms the design's central bet — stated at the top
+of this document — that fusing BM25 and dense retrieval with RRF outperforms
+either half alone. The fixture's contrary result was the fixture's own
+artefact, not the truth about recall.
+
+Two caveats keep this honest rather than triumphant. BEIR documents are
+short abstracts (roughly 1.1 chunks per document), so this validates
+recall's **ranking and fusion**, not its chunking. And our lexical arm sits
+−0.026 (SciFact) / −0.022 (NFCorpus) below published BM25, inside the ±0.05
+band that Kamalloo et al. (SIGIR 2024) attribute to ordinary
+index-configuration differences — i.e. our BM25 reproduces the reference
+rather than merely resembling it.
+
+Full methodology, the SWE-bench code-retrieval slice, and the reranker
+literature review live in `eval/beir.py`, `eval/swebench.py` and
+`docs/research/`.
+
 ## Scope
 
 **In, for v1**
@@ -272,14 +314,14 @@ Each of these is a deliberate, reported failure rather than a silent one.
 
 **Roadmap after v1, in priority order**
 
-1. **Cross-encoder reranker.** The largest measured quality win available to us, ahead of any backend or model swap. Do this before anything else on this list.
+1. **Cross-encoder reranker — conditional, not assumed.** *(Corrected 16 July 2026 — see below.)* This item originally read "the largest measured quality win available to us, ahead of any backend or model swap. Do this before anything else on this list." We built it and measured it: off-the-shelf cross-encoder reranking (`ms-marco-MiniLM-L-6-v2` and `bge-reranker-base`, both applied to the fixture golden set) **degraded retrieval**, dropping MRR below the no-rerank hybrid baseline. This is consistent with the 2024–2026 literature, which finds reranking helps a *weak* first-stage retriever (classic BM25-then-rerank); recall's first stage is already a strong 2024 dense model, and an off-the-shelf, domain-mismatched cross-encoder adds noise rather than signal on top of it. The item stays on the roadmap but demoted to **conditional and unproven**: it is not worth attempting again without either a stronger or domain-tuned reranker, and any future attempt must be gated on a measured lift against the golden set before it ships — never on faith. See `docs/research/` for the full literature review.
 2. **LanceDB backend.** Unlocks the zero-setup install and proves the Store interface is real.
 3. **Voyage and Gemini embedders.**
 4. **Go public.** Flip the repo, publish the package, write the launch post.
 
 ## Provenance
 
-recall is a clean-room design. It is derived from published information-retrieval literature (Reciprocal Rank Fusion: Cormack, Clarke and Buettcher, 2009; BM25: Robertson and Spärck Jones) and from the public documentation of pgvector, Postgres, LanceDB, Ollama and MCP. No third-party source code was copied or adapted. The techniques it uses are standard and unencumbered.
+recall draws on published information-retrieval literature (Reciprocal Rank Fusion: Cormack, Clarke and Buettcher, 2009; BM25: Robertson and Spärck Jones), on the public documentation of pgvector, Postgres, ParadeDB pg_search, LanceDB, Ollama and MCP, and on the wider prior art in code- and note-retrieval tooling. The techniques it uses — rank fusion, dense + lexical hybrid retrieval, heading-aware chunking — are standard and unencumbered. Its own code is original to this repository.
 
 ## Open questions
 

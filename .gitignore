@@ -19,6 +19,11 @@ venv/
 *.egg-info/
 dist/
 build/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
 
 # Node
 node_modules/
@@ -26,3 +31,10 @@ node_modules/
 
 # OS
 .DS_Store
+
+# SDD scratch (ledger, task briefs, review packages)
+.superpowers/
+
+# Private real-corpus evaluation (brain, divorce). Contains query text and file
+# paths from personal notes. MUST NEVER be committed - this repo goes public.
+eval/private/
