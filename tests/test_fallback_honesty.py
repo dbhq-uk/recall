@@ -16,7 +16,7 @@ import psycopg
 import pytest
 
 from recall.models import Chunk
-from tests.conftest import TEST_DSN, requires_postgres
+from tests.conftest import TEST_DSN, requires_pg_search, requires_postgres
 
 pytestmark = [pytest.mark.integration, requires_postgres]
 
@@ -58,6 +58,7 @@ def load(store):
     return store
 
 
+@requires_pg_search
 def test_pg_search_is_actually_installed_on_this_machine() -> None:
     """If this fails, the BM25 half of this file is not testing what it claims."""
     with psycopg.connect(TEST_DSN) as conn, conn.cursor() as cur:
@@ -66,6 +67,7 @@ def test_pg_search_is_actually_installed_on_this_machine() -> None:
         assert row is not None and row[0], "pg_search absent — the BM25 path is NOT being tested"
 
 
+@requires_pg_search
 def test_with_pg_search_the_ranker_is_bm25_and_nothing_is_warned(store_factory) -> None:
     store = load(store_factory(dim=DIM, pg_search_enabled=True))
     r = store.search(qvec=vec(1, 0, 0), qtext="pop-top roof", sources=["s"], limit=10, k=60)
@@ -82,6 +84,7 @@ def test_without_pg_search_the_ranker_is_ts_rank_cd_AND_IT_SAYS_SO(store_factory
     assert any("not BM25" in n for n in r.notes)
 
 
+@requires_pg_search
 def test_BOTH_PATHS_STILL_RETURN_USABLE_RESULTS(store_factory) -> None:
     """The fallback is honest, not broken. ts_rank_cd is a real ranker."""
     for enabled in (True, False):
@@ -103,6 +106,7 @@ def test_the_two_paths_use_genuinely_different_sql() -> None:
     assert "paradedb" not in sql.SEARCH_TS_RANK_CD
 
 
+@requires_pg_search
 def test_a_dense_only_result_is_never_dressed_up_as_hybrid(store_factory) -> None:
     """Under EITHER ranker: zero lexical hits must never be silently reported as
     a hybrid ranking. We still return the dense hits — we just refuse to
