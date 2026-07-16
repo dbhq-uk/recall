@@ -164,5 +164,15 @@ def doctor() -> None:
     typer.echo(f"chunks    : {stats.total_chunks} across {len(stats.sources)} source(s)")
 
 
+@app.command()
+@honest_failure
+def serve(source: str = typer.Option(None, "--source", help="Tag of the current silo")) -> None:
+    """Run the MCP server over stdio."""
+    from recall.mcp_server import build_server
+
+    server = build_server(source)
+    server.run()
+
+
 if __name__ == "__main__":
     app()
