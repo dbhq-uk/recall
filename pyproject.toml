@@ -20,6 +20,11 @@ dependencies = [
 [project.scripts]
 recall = "recall.cli:app"
 
+[project.optional-dependencies]
+eval = [
+    "ranx>=0.3.21",
+]
+
 [dependency-groups]
 dev = [
     "mypy>=2.3.0",
