@@ -50,7 +50,6 @@ from pathlib import Path, PurePosixPath
 from typing import Protocol
 
 import tomli_w
-from ranx import Qrels, Run, evaluate
 
 from recall.config import Registry, load_config
 from recall.embedders import Embedder, build_embedder
@@ -228,7 +227,14 @@ def evaluate_run(
     make_comparable=True adds an empty result for any query the run has no
     hits for at all (a real possibility -- an arm can legitimately return
     nothing) rather than raising a hard mismatch error.
+
+    ranx is imported lazily: it lives in the optional `eval` extra, and the
+    pure loading/pooling helpers in this module must import cleanly without it
+    (a base install has no ranx, and an ImportError here would break test
+    collection for the whole suite).
     """
+    from ranx import Qrels, Run, evaluate
+
     ranx_qrels = Qrels(qrels)
     ranx_run = Run(run)
     metrics = [f"ndcg@{k}", f"recall@{k}", "mrr", f"map@{k}"]

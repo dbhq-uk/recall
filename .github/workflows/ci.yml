@@ -56,7 +56,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
-      - run: uv sync --locked
+      # --extra eval installs ranx, so the BEIR/ranx tests genuinely RUN here
+      # rather than silently skipping. A green suite that quietly skipped its
+      # eval tests is the same silent-degradation this product exists to refuse.
+      - run: uv sync --locked --extra eval
       - run: uv run pytest -m "not integration and not ollama"
 
   test-integration-bm25:

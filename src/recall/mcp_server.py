@@ -32,9 +32,7 @@ def resolve_current_source(cwd: Path, explicit: str | None) -> str:
 
 
 @mcp.tool()
-def recall_search(
-    query: str, sources: list[str] | None = None, limit: int = 10
-) -> dict[str, Any]:
+def recall_search(query: str, sources: list[str] | None = None, limit: int = 10) -> dict[str, Any]:
     """Search indexed notes and code. Hybrid: BM25 + dense vectors, fused by RRF.
 
     `sources` defaults to the current source. Pass a list of tags to span silos,

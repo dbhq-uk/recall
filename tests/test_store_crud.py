@@ -135,8 +135,14 @@ def test_upsert_REFUSES_a_chunk_with_no_embedding(store_factory):
 
     store = store_factory()
     bad = Chunk(
-        source="brain", rel_path="a.md", chunk_idx=0, content="body",
-        context=None, lang="markdown", file_sha="sha", embedding=None,
+        source="brain",
+        rel_path="a.md",
+        chunk_idx=0,
+        content="body",
+        context=None,
+        lang="markdown",
+        file_sha="sha",
+        embedding=None,
     )
     with pytest.raises(RecallError, match="no embedding"):
         store.upsert([bad])

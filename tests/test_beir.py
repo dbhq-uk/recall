@@ -7,6 +7,7 @@ exercised here -- see eval/beir.py's module docstring.
 
 from __future__ import annotations
 
+import importlib.util
 import tomllib
 
 import pytest
@@ -27,6 +28,12 @@ from eval.beir import (
 # ---------------------------------------------------------------------------
 # load_corpus
 # ---------------------------------------------------------------------------
+
+
+requires_ranx = pytest.mark.skipif(
+    importlib.util.find_spec("ranx") is None,
+    reason="needs the optional `eval` extra (ranx). CI installs it, so these genuinely run there.",
+)
 
 
 def test_load_corpus_parses_id_title_text(tmp_path):
@@ -80,9 +87,7 @@ def test_load_queries_filters_to_test_qids_only(tmp_path):
     test split -- this is THE gotcha the task exists to pin down."""
     path = tmp_path / "queries.jsonl"
     path.write_text(
-        "\n".join(
-            f'{{"_id": "{i}", "text": "query {i}", "metadata": {{}}}}' for i in range(5)
-        )
+        "\n".join(f'{{"_id": "{i}", "text": "query {i}", "metadata": {{}}}}' for i in range(5))
         + "\n"
     )
     qrels = {"1": {"d1": 1}, "3": {"d2": 1}}
@@ -203,6 +208,7 @@ def test_ranked_run_from_paths_empty_input():
 # ---------------------------------------------------------------------------
 
 
+@requires_ranx
 def test_evaluate_run_ndcg_hand_checkable():
     """qrels: d1 and d2 both relevant. run ranks d1, d3(irrelevant), d2.
 
@@ -218,6 +224,7 @@ def test_evaluate_run_ndcg_hand_checkable():
     assert scores["mrr"] == pytest.approx(1.0)
 
 
+@requires_ranx
 def test_evaluate_run_perfect_ranking_scores_one():
     qrels = {"q1": {"d1": 1}}
     run = {"q1": {"d1": 5.0, "d2": 1.0}}
@@ -225,6 +232,7 @@ def test_evaluate_run_perfect_ranking_scores_one():
     assert scores["ndcg@10"] == pytest.approx(1.0)
 
 
+@requires_ranx
 def test_evaluate_run_tolerates_a_query_with_no_hits_at_all():
     """An arm can legitimately return nothing for a query -- evaluate_run
     must not crash, it must just score that query as a miss."""
@@ -276,6 +284,7 @@ def test_published_baselines_has_both_probe_datasets():
 # ---------------------------------------------------------------------------
 
 
+@requires_ranx
 def test_our_rrf_matches_ranx_reference():
     """Our eval.metrics.fuse and ranx's rrf fusion should agree on ORDER for
     the same rankings -- ranx is the reference implementation the rest of
