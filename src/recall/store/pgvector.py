@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+from datetime import datetime
 
 import psycopg
 from pgvector import Vector
@@ -197,7 +198,11 @@ class PgVectorStore:
         meta = self._meta()
         with self._connect() as conn, conn.cursor() as cur:
             cur.execute(sql.STATS_BY_SOURCE)
-            by_source: dict[str, int] = dict(cur.fetchall())
+            rows = cur.fetchall()
+        by_source: dict[str, int] = {source: count for source, count, _last_indexed in rows}
+        last_indexed: dict[str, datetime | None] = {
+            source: last_indexed for source, _count, last_indexed in rows
+        }
         return Stats(
             sources=by_source,
             total_chunks=sum(by_source.values()),
@@ -205,6 +210,7 @@ class PgVectorStore:
             embedding_model=meta.get("embedding_model", "unknown"),
             embedding_dim=int(meta.get("embedding_dim", "0")),
             lexical_ranker=self.lexical_ranker(),
+            last_indexed=last_indexed,
         )
 
     POOL_MULTIPLIER = 3

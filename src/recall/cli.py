@@ -112,7 +112,7 @@ def reindex(tag: str) -> None:
 @app.command()
 @honest_failure
 def sources() -> None:
-    """What is indexed: tag, chunk count, and where it lives on this machine."""
+    """What is indexed: tag, chunk count, last indexed, and where it lives on this machine."""
     stats = _store().stats()
 
     registry = Registry.load()
@@ -125,7 +125,9 @@ def sources() -> None:
             location = str(registry.path_for(tag))
         except RecallError:
             location = "(not registered on this machine)"
-        typer.echo(f"{tag:16} {count:6} chunks   {location}")
+        ts = stats.last_indexed.get(tag)
+        last_indexed = ts.strftime("%Y-%m-%d %H:%M") if ts else "never"
+        typer.echo(f"{tag:16} {count:6} chunks   last indexed {last_indexed:16} {location}")
 
 
 @app.command()

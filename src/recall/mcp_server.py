@@ -87,7 +87,7 @@ def recall_search(
 
 @mcp.tool()
 def recall_sources() -> dict[str, Any]:
-    """What is indexed: tag, chunk count, and whether it is registered here."""
+    """What is indexed: tag, chunk count, last indexed, and whether it is registered here."""
     stats = _store().stats()
     registry = Registry.load()
 
@@ -97,7 +97,15 @@ def recall_sources() -> dict[str, Any]:
             path = str(registry.path_for(tag))
         except Exception:
             path = None
-        out.append({"tag": tag, "chunks": count, "registered_path": path})
+        ts = stats.last_indexed.get(tag)
+        out.append(
+            {
+                "tag": tag,
+                "chunks": count,
+                "last_indexed": ts.isoformat() if ts else None,
+                "registered_path": path,
+            }
+        )
 
     return {"sources": out, "current_source": CURRENT_SOURCE}
 

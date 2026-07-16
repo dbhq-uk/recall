@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Literal
 
 LexicalRanker = Literal["bm25", "ts_rank_cd"]
@@ -92,3 +93,4 @@ class Stats:
     embedding_dim: int
     lexical_ranker: LexicalRanker
     backend: str = "pgvector"
+    last_indexed: dict[str, datetime | None] = field(default_factory=dict)

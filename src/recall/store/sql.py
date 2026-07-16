@@ -172,4 +172,6 @@ LIMIT %(limit)s
 """
 
 ALL_SOURCES = "SELECT DISTINCT source FROM chunks ORDER BY source"
-STATS_BY_SOURCE = "SELECT source, count(*) FROM chunks GROUP BY source ORDER BY source"
+STATS_BY_SOURCE = (
+    "SELECT source, count(*), max(indexed_at) FROM chunks GROUP BY source ORDER BY source"
+)

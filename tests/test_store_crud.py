@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import psycopg
 import pytest
 
@@ -101,6 +103,22 @@ def test_stats_reports_the_model_and_the_ranker(store_factory):
     assert s.embedding_dim == 8
     assert s.backend == "pgvector"
     assert s.lexical_ranker in ("bm25", "ts_rank_cd")
+
+
+def test_stats_reports_last_indexed_per_source(store_factory):
+    """design.md promises recall_sources() surfaces "last indexed". The
+    source of truth is chunks.indexed_at; stats() must carry it through."""
+    store = store_factory()
+    before = datetime.now(UTC)
+    store.upsert([mk(source="brain")])
+    s = store.stats()
+
+    ts = s.last_indexed["brain"]
+    assert isinstance(ts, datetime)
+    assert ts >= before
+
+    # Existing contract must not regress: sources is still {tag: plain int count}.
+    assert s.sources == {"brain": 1}
 
 
 def test_upsert_of_an_empty_list_is_a_no_op(store_factory):

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 
 from recall.mcp_server import recall_search, recall_sources, recall_status, resolve_current_source
@@ -98,6 +100,10 @@ def test_sources_lists_tag_chunk_count_and_last_indexed(indexed):
     out = recall_sources()
     assert out["sources"][0]["tag"] == "brain"
     assert out["sources"][0]["chunks"] > 0
+    last_indexed = out["sources"][0]["last_indexed"]
+    assert last_indexed is not None
+    # ISO-8601 round-trips; that's the contract the agent on the other end relies on.
+    datetime.fromisoformat(last_indexed)
 
 
 def test_status_reports_ranker_model_dim_and_backend(indexed):
