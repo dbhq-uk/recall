@@ -133,7 +133,9 @@ This is deliberately the opposite of the norm in this space, where a missing lex
 
 ## Fusion: RRF
 
-Reciprocal Rank Fusion, per Cormack, Clarke and Buettcher (2009). Each half retrieves a pool of `limit * 3`, and a document's score is the sum of `1 / (k + rank)` across the halves it appears in. Default `k = 60`, configurable.
+Reciprocal Rank Fusion, per Cormack, Clarke and Buettcher (2009). Each half retrieves a pool of `limit * 3`, and a document's score is the sum of `1 / (k + rank)` across the halves it appears in. Configurable, and generalised to a weighted convex combination (see `store/sql.py`).
+
+**Default `k = 10`, not the paper's 60** — and deliberately not presented as a measured win. On the golden set the two are statistically indistinguishable (see the decision log). It is kept as a prior that suits a top-10 use case, not as a result. See `RecallConfig.rrf_k` for the numbers and the provenance.
 
 In pgvector this is a single SQL statement, which is the main aesthetic argument for the Postgres backend:
 
@@ -162,7 +164,7 @@ ORDER BY score DESC
 LIMIT :limit;
 ```
 
-RRF's `k = 60` is a convention, not a law. The literature is clear that it is sensitive to tuning and that convex combination can beat it. Treat 60 as a starting point and let the golden query set decide.
+RRF's `k = 60` is a convention, not a law. The literature is clear that it is sensitive to tuning and that convex combination can beat it. We let the golden set decide, and it declined to: `k=10` and `k=60` are statistically indistinguishable on our corpus (decision log, 17 July 2026). We ship 10 as a prior suited to top-10 retrieval, not as a measured win — and we say so rather than dressing a null result up as tuning.
 
 ## Chunking
 
@@ -323,8 +325,64 @@ literature review live in `eval/beir.py`, `eval/swebench.py` and
 
 recall draws on published information-retrieval literature (Reciprocal Rank Fusion: Cormack, Clarke and Buettcher, 2009; BM25: Robertson and Spärck Jones), on the public documentation of pgvector, Postgres, ParadeDB pg_search, LanceDB, Ollama and MCP, and on the wider prior art in code- and note-retrieval tooling. The techniques it uses — rank fusion, dense + lexical hybrid retrieval, heading-aware chunking — are standard and unencumbered. Its own code is original to this repository.
 
+## Decision log
+
+Decisions that changed a default or closed an open question, with the evidence.
+This section exists because `rrf_k` once drifted from 60 to 10 inside a commit
+about something else, contradicting a recorded decision, and nobody could later
+say why. A default without a paper trail is a guess wearing a lab coat.
+
+### `rrf_k` stays 10, and it is not a measured win *(17 July 2026)*
+
+**Question.** `RecallConfig.rrf_k` shipped as 10 while this document and
+`docs/eval/README.md` both said 60 — the latter having explicitly concluded
+"k=60 stays". Which is right?
+
+**Measurement.** Golden set (40 queries), real Ollama `nomic-embed-text`, real
+BM25 via pg_search, `limit=10`. Paired bootstrap over queries, 2000 resamples:
+
+| comparison | delta (k=10 − k=60) | 95% CI | verdict |
+|---|---:|---|---|
+| Recall@10 | −0.025 | [−0.075, +0.000] | includes 0 — indistinguishable |
+| MRR | +0.023 | [−0.019, +0.076] | includes 0 — indistinguishable |
+
+The full sweep is flat: Recall@10 sits at 0.875–0.900 across every k from 1 to
+200, and MRR declines gently from 0.720 (k=1) to 0.622 (k≥60). Every movement
+is within noise for n=40.
+
+**Decision.** Keep 10; fix the docs, not the code. The evidence favours neither
+value, so churning a shipped default would repeat the original error in the
+opposite direction. A low k weights the head of each ranking more heavily,
+which suits retrieval feeding an agent's top-10 context. This is recorded as a
+**prior, not a result** — if the golden set grows enough to separate them,
+revisit and bring a number.
+
+**Process note.** The real defect was never the value. It was that a default
+changed silently, against a recorded decision, in a commit about fusion
+weights. Hence this log.
+
+### Fusion does not currently beat dense-only on the fixture *(17 July 2026)*
+
+Measured in the same run, `w_dense=0.7 / w_lexical=0.3`, k=10:
+
+| arm | Recall@10 | MRR |
+|---|---|---|
+| dense | 0.900 [0.800–0.975] | 0.735 [0.617–0.849] |
+| lexical | 0.725 [0.575–0.850] | 0.510 [0.371–0.646] |
+| **hybrid** | 0.875 [0.774–0.975] | 0.645 [0.530–0.761] |
+
+Hybrid loses to dense-only on both metrics on this corpus. On `semantic`
+queries the hybrid-vs-dense delta is *not* distinguishable from noise at n=15;
+on `lexical` and `hybrid` kinds every arm saturates Recall@10 at 1.000, so
+fusion has nothing to add there. This is consistent with the BEIR results
+(where hybrid does win on external, un-authored corpora) and with the
+literature's "strong first stage" finding — see `docs/research/`. It is
+recorded here rather than quietly averaged away. The honest reading: on a
+small, semantic-skewed, self-authored fixture, a strong dense retriever is
+hard to improve on by fusing a weak lexical half into it.
+
 ## Open questions
 
-- **`k = 60` is a default, not an answer.** Tune against the golden set once it exists; convex combination may beat RRF outright.
-- **English-only tsvector.** `to_tsvector('english', ...)` is hardcoded. Fine for now, wrong for a public tool eventually.
-- **Chunk size targets are guesses.** ~200 char floor and ~2000 char ceiling are plausible, not measured. The golden set should settle them.
+- **Fusion's value is corpus-dependent and we should say so.** It wins on BEIR, loses on our fixture. The open question is not "is RRF good" but "for which query distributions does the lexical half add signal rather than noise" — per-query adaptive weighting is the literature's answer and is unbuilt here.
+- **English-only tsvector.** `to_tsvector('english', ...)` is hardcoded. Fine for now, wrong for a public tool eventually. Untested against non-Latin scripts: we do not currently know whether a non-English query degrades to zero lexical hits (correctly reported as dense-only) or does something stranger.
+- **Chunk size targets are guesses.** ~200 char floor and ~2000 char ceiling are plausible, not measured. The golden set should settle them — the harness sweeps `k` but has no equivalent sweep over chunk size, so this question is still open for the same reason it always was: nobody built the measurement.

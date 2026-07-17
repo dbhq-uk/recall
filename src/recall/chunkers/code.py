@@ -89,21 +89,79 @@ def _descend_for_methods(class_node) -> list:
     return out
 
 
+class _CodeChunks(list):
+    """A plain list of Chunk, plus a flag callers can opt into reading.
+
+    Subclassing list rather than returning a tuple/dataclass keeps every
+    existing `chunks = chunk_code(...)` call site working unchanged — they
+    still get something that behaves exactly like a list. Callers that care
+    about honesty (indexer.py) read `.fell_back`; callers that don't (most
+    tests) never notice the difference.
+    """
+
+    fell_back: bool = False
+
+
+def _no_grammar_errors() -> tuple[type[BaseException], ...]:
+    """The exception types that genuinely mean "no grammar available here".
+
+    Resolved once, at import time, and deliberately NOT by naming the pack's
+    exception class inside chunk_code's own `except` tuple: if the import that
+    binds that name is itself what failed, evaluating the tuple raises
+    UnboundLocalError and the fallback never runs — breaking precisely the
+    no-pack environment the fallback exists to serve.
+    """
+    try:
+        from tree_sitter_language_pack import Error as GrammarPackError
+    except ImportError:
+        # No pack, so the pack's own exceptions cannot be raised. ImportError
+        # (added by the caller below) is the only thing left to catch.
+        return ()
+    return (GrammarPackError,)
+
+
+_NO_GRAMMAR_ERRORS: tuple[type[BaseException], ...] = (ImportError, *_no_grammar_errors())
+
+
 def chunk_code(text: str, *, source: str, rel_path: str, file_sha: str, lang: str) -> list[Chunk]:
     try:
         from tree_sitter_language_pack import get_parser
 
         parser = get_parser(lang)
         tree = parser.parse(text.encode("utf-8"))
-    except Exception:
-        # Unsupported grammar, or the grammar pack is unavailable. Windows, honestly.
-        return chunk_text(text, source=source, rel_path=rel_path, file_sha=file_sha, lang=lang)
+    except _NO_GRAMMAR_ERRORS:
+        # ImportError: the tree_sitter_language_pack extra isn't installed at all.
+        # GrammarPackError (LanguageNotFoundError, DownloadError, ConfigError, ...):
+        # this specific grammar isn't available, per the pack's own exception
+        # hierarchy. Both are genuinely expected "no grammar" conditions.
+        #
+        # A bare `except Exception` here previously also swallowed a real
+        # tree-sitter crash on a SUPPORTED grammar — invisible corruption of
+        # the chunking for that file, exactly the silent degradation this
+        # product exists to prevent. Anything other than the two cases above
+        # (a segfault-adjacent crash, a bug in our span-walking code, etc.)
+        # must propagate so it surfaces as a loud failure, not quietly worse
+        # chunking.
+        result = _CodeChunks(
+            chunk_text(text, source=source, rel_path=rel_path, file_sha=file_sha, lang=lang)
+        )
+        result.fell_back = True
+        return result
 
     lines = text.splitlines()
     spans = sorted(_find_definitions(tree.root_node), key=lambda s: s.start)
 
     if not spans:
-        return chunk_text(text, source=source, rel_path=rel_path, file_sha=file_sha, lang=lang)
+        # NOT a grammar fallback: the grammar parsed fine, it just found no
+        # function/class definitions (a constants module, a config file, an
+        # empty __init__.py). Line-window chunking is the *correct* choice
+        # here, not a degraded one, so this must not be counted alongside the
+        # genuine "no grammar available" case above.
+        result = _CodeChunks(
+            chunk_text(text, source=source, rel_path=rel_path, file_sha=file_sha, lang=lang)
+        )
+        result.fell_back = False
+        return result
 
     # Gap spans: code outside any definition (imports, constants) must not be lost.
     pieces: list[_Span] = []
@@ -116,7 +174,7 @@ def chunk_code(text: str, *, source: str, rel_path: str, file_sha: str, lang: st
     if cursor < len(lines):
         pieces.append(_Span(cursor, len(lines) - 1, None))
 
-    chunks: list[Chunk] = []
+    chunks: list[Chunk] = _CodeChunks()
     for piece in pieces:
         body = "\n".join(lines[piece.start : piece.end + 1]).strip()
         if not body:

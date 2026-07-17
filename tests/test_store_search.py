@@ -461,3 +461,75 @@ def test_search_lexical_only_with_no_hits_returns_empty_list(store_factory, corp
     store = corpus(store_factory(dim=DIM, pg_search_enabled=False))
     ranking = store.search_lexical_only(qtext="zzzznotawordanywhere", sources=["brain"], limit=10)
     assert ranking == []
+
+
+# --- limit validation ---------------------------------------------------------
+#
+# limit=0 used to silently return zero results — indistinguishable from "no
+# matches". A negative limit reached raw SQL and raised an opaque psycopg
+# error. Both are the silent/opaque failure mode this product exists to catch.
+
+
+def test_search_rejects_a_zero_limit(store_factory):
+    from recall.errors import InvalidLimitError
+
+    store = store_factory(dim=DIM)
+    with pytest.raises(InvalidLimitError, match="0"):
+        store.search(qvec=vec(1, 0, 0), qtext="word", sources=["brain"], limit=0)
+
+
+def test_search_rejects_a_negative_limit(store_factory):
+    from recall.errors import InvalidLimitError
+
+    store = store_factory(dim=DIM)
+    with pytest.raises(InvalidLimitError, match="-1"):
+        store.search(qvec=vec(1, 0, 0), qtext="word", sources=["brain"], limit=-1)
+
+
+def test_search_rejects_a_limit_above_the_maximum(store_factory):
+    from recall.errors import InvalidLimitError
+    from recall.store.pgvector import PgVectorStore
+
+    store = store_factory(dim=DIM)
+    too_big = PgVectorStore.MAX_LIMIT + 1
+    with pytest.raises(InvalidLimitError, match=str(too_big)):
+        store.search(qvec=vec(1, 0, 0), qtext="word", sources=["brain"], limit=too_big)
+
+
+def test_search_dense_only_rejects_an_invalid_limit(store_factory):
+    from recall.errors import InvalidLimitError
+
+    store = store_factory(dim=DIM)
+    with pytest.raises(InvalidLimitError):
+        store.search_dense_only(qvec=vec(1, 0, 0), sources=["brain"], limit=0)
+
+
+def test_search_lexical_only_rejects_an_invalid_limit(store_factory):
+    from recall.errors import InvalidLimitError
+
+    store = store_factory(dim=DIM)
+    with pytest.raises(InvalidLimitError):
+        store.search_lexical_only(qtext="word", sources=["brain"], limit=0)
+
+
+# --- one connection per logical search ----------------------------------------
+
+
+def test_search_opens_exactly_one_connection(store_factory, corpus, monkeypatch):
+    """search() used to open three separate connections (lexical_ranker(),
+    _resolve_sources(), and the search statement itself). One logical query
+    should cost one connection."""
+    import psycopg
+
+    store = corpus(store_factory(dim=DIM, pg_search_enabled=False))
+
+    real_connect = psycopg.connect
+    calls = []
+
+    def counting_connect(*args, **kwargs):
+        calls.append(1)
+        return real_connect(*args, **kwargs)
+
+    monkeypatch.setattr(psycopg, "connect", counting_connect)
+    store.search(qvec=vec(1, 0, 0), qtext="pop-top roof", sources=["*"], limit=10, k=60)
+    assert len(calls) == 1

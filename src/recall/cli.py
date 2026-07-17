@@ -89,6 +89,12 @@ def index(tag: str, force: bool = typer.Option(False, "--force")) -> None:
         f"{report.files_indexed} files "
         f"({report.files_skipped} unchanged, {report.files_pruned} pruned)"
     )
+    if report.files_fallback_chunked:
+        typer.echo(
+            f"  {report.files_fallback_chunked} file(s) fell back to line-window "
+            f"chunking (no tree-sitter grammar available) — retrieval quality for "
+            f"those files is degraded to plain 60-line windows, not symbol-aware chunks."
+        )
 
 
 @app.command()
@@ -107,6 +113,12 @@ def reindex(tag: str) -> None:
     typer.echo(
         f"Reindexed {report.tag}: {report.chunks_written} chunks from {report.files_indexed} files"
     )
+    if report.files_fallback_chunked:
+        typer.echo(
+            f"  {report.files_fallback_chunked} file(s) fell back to line-window "
+            f"chunking (no tree-sitter grammar available) — retrieval quality for "
+            f"those files is degraded to plain 60-line windows, not symbol-aware chunks."
+        )
 
 
 @app.command()

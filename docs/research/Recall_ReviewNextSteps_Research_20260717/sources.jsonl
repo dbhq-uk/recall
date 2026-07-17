@@ -1,0 +1,18 @@
+{"source_id": "S1", "title": "nomic-embed-text-v2-moe — Ollama library (official)", "url": "https://ollama.com/library/nomic-embed-text-v2-moe", "type": "vendor-docs", "credibility": 90}
+{"source_id": "S2", "title": "Best Ollama Embedding Models 2026: 7 Benchmarked (Morph)", "url": "https://www.morphllm.com/ollama-embedding-models", "type": "industry-benchmark", "credibility": 65}
+{"source_id": "S3", "title": "qwen3-embedding — Ollama library (official)", "url": "https://ollama.com/library/qwen3-embedding", "type": "vendor-docs", "credibility": 90}
+{"source_id": "S4", "title": "timescale/pg_textsearch — GitHub", "url": "https://github.com/timescale/pg_textsearch", "type": "primary-source-code", "credibility": 90}
+{"source_id": "S5", "title": "TigerData — How We Built a BM25 Search Engine on Postgres Pages", "url": "https://www.tigerdata.com/blog/pg-textsearch-bm25-full-text-search-postgres", "type": "vendor-blog", "credibility": 75}
+{"source_id": "S6", "title": "Show HN: pg_textsearch (discussion incl. 4.7x throughput claim)", "url": "https://news.ycombinator.com/item?id=47589856", "type": "community", "credibility": 60}
+{"source_id": "S7", "title": "pg_textsearch v1.0 announcement — postgresql.org news", "url": "https://www.postgresql.org/about/news/pg_textsearch-v10-3264/", "type": "official-announcement", "credibility": 85}
+{"source_id": "S8", "title": "ParadeDB — Introducing pg_search (AGPL licensing)", "url": "https://www.paradedb.com/blog/introducing-search", "type": "vendor-blog", "credibility": 80}
+{"source_id": "S9", "title": "zilliztech/claude-context — GitHub", "url": "https://github.com/zilliztech/claude-context", "type": "primary-source-code", "credibility": 90}
+{"source_id": "S10", "title": "Milvus blog — Claude Context: cut Claude Code token usage", "url": "https://milvus.io/blog/claude-context-reduce-claude-code-token-usage.md", "type": "vendor-blog", "credibility": 75}
+{"source_id": "S11", "title": "Engineer's Codex — How Cursor Indexes Codebases Fast (Merkle trees)", "url": "https://read.engineerscodex.com/p/how-cursor-indexes-codebases-fast", "type": "technical-analysis", "credibility": 70}
+{"source_id": "S12", "title": "Neon docs — pg_search no longer available for new Neon projects (2026-03-19)", "url": "https://neon.com/docs/extensions/pg_search", "type": "vendor-docs", "credibility": 85}
+{"source_id": "S13", "title": "CocoIndex — Incremental Processing", "url": "https://cocoindex.io/blogs/incremental-processing/", "type": "vendor-blog", "credibility": 60}
+{"source_id": "S14", "title": "HackerNoon — CodeGrok MCP semantic code search", "url": "https://hackernoon.com/codegrok-mcp-semantic-code-search-that-saves-ai-agents-10x-in-context-usage", "type": "industry-article", "credibility": 55}
+{"source_id": "S15", "title": "Internal: Best Implementation for Local-First Hybrid Retrieval (docs/research/HybridRetrieval_BestImplementation_20260716/report.md)", "url": "docs/research/HybridRetrieval_BestImplementation_20260716/report.md", "type": "internal-report", "credibility": 85}
+{"source_id": "S16", "title": "Internal: recall repo code audit (subagent, 2026-07-17, full read of src/, tests/, eval/, CI)", "url": "internal://repo-audit-20260717", "type": "internal-audit", "credibility": 85}
+{"source_id": "S17", "title": "Firecrawl — 10 Best MCP Servers for Developers in 2026", "url": "https://www.firecrawl.dev/blog/best-mcp-servers-for-developers", "type": "industry-article", "credibility": 55}
+{"source_id": "S18", "title": "ollama/ollama issue #9340 — Nomic Embed text v2 support", "url": "https://github.com/ollama/ollama/issues/9340", "type": "community", "credibility": 65}

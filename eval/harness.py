@@ -29,7 +29,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
-from eval.metrics import mrr, recall_at_k
+from eval.metrics import bootstrap_ci, mrr, paired_bootstrap_delta_ci, recall_at_k
 from recall.config import load_config
 from recall.embedders import build_embedder
 from recall.store.pgvector import PgVectorStore
@@ -37,6 +37,7 @@ from recall.store.pgvector import PgVectorStore
 GOLDEN = Path(__file__).parent / "golden.toml"
 SOURCES = ["fixture"]
 PRODUCTION_LIMIT = 10  # what a real recall_search(limit=10) call actually returns
+CONFIDENCE = 0.95
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,22 @@ class ArmScore:
     recall_at_10: float
     mrr: float
     n: int
+    # Per-query scores, in query order, so paired deltas against another arm are
+    # computable. Optional and default None so callers that only have the
+    # aggregate (e.g. older tests, or a report reconstructed from a printed
+    # summary) still work — CI-aware verdicts just degrade to point estimates.
+    recall_scores: tuple[float, ...] | None = None
+    mrr_scores: tuple[float, ...] | None = None
+
+    def recall_ci(self, confidence: float = CONFIDENCE) -> tuple[float, float] | None:
+        if not self.recall_scores:
+            return None
+        return bootstrap_ci(list(self.recall_scores), confidence=confidence)
+
+    def mrr_ci(self, confidence: float = CONFIDENCE) -> tuple[float, float] | None:
+        if not self.mrr_scores:
+            return None
+        return bootstrap_ci(list(self.mrr_scores), confidence=confidence)
 
 
 @dataclass
@@ -54,24 +71,68 @@ class Report:
     by_kind: dict[str, dict[str, ArmScore]]
     limit: int = PRODUCTION_LIMIT
 
+    @staticmethod
+    def _arm_verdict(hybrid_score: ArmScore, half_score: ArmScore) -> str:
+        """Compare hybrid to one half's ArmScore.
+
+        Returns "win", "loss", "tie" or "noise". "noise" only appears when we
+        have per-query scores for both arms and the PAIRED delta-CI (hybrid
+        minus half) straddles zero — i.e. the point estimate says one thing but
+        the bootstrap says n is too small to trust it. Point estimates alone
+        (no per-query scores available) fall back to the old win/loss/tie
+        comparison, because there is nothing to bootstrap.
+        """
+        hybrid = hybrid_score.recall_at_10
+        other = half_score.recall_at_10
+
+        if hybrid_score.recall_scores and half_score.recall_scores:
+            lo, hi = paired_bootstrap_delta_ci(
+                list(hybrid_score.recall_scores), list(half_score.recall_scores)
+            )
+            if lo > 0.0:
+                return "win"
+            if hi < 0.0:
+                return "loss"
+            if hybrid == other:
+                return "tie"
+            return "noise"
+
+        if hybrid > other:
+            return "win"
+        if hybrid < other:
+            return "loss"
+        return "tie"
+
     def kind_beats_both_halves(self, kind: str) -> bool:
-        """Does hybrid beat both dense-only and lexical-only for this one kind?"""
+        """Does hybrid beat both dense-only and lexical-only for this one kind?
+
+        "Beat" means a real win: point estimate higher AND (when we have the
+        per-query scores to check) the paired delta-CI excludes zero. A kind
+        whose apparent win is statistically indistinguishable from noise does
+        NOT count — see fusion_is_earning_its_keep for why that matters.
+        """
         scores = self.by_kind[kind]
-        hybrid = scores["hybrid"].recall_at_10
-        return hybrid > scores["dense"].recall_at_10 and hybrid > scores["lexical"].recall_at_10
+        return self._arm_verdict(scores["hybrid"], scores["dense"]) == "win" and (
+            self._arm_verdict(scores["hybrid"], scores["lexical"]) == "win"
+        )
 
     def kind_verdict_text(self, kind: str) -> str:
         """Human-readable verdict for one kind. A tie is honestly reported as a
-        tie, not dressed up as a win or overstated as a loss."""
+        tie, a statistically indistinguishable difference is reported as noise
+        rather than dressed up as a win, and a genuine loss is reported as a
+        loss — not blurred into "noise" just because that sounds softer."""
         scores = self.by_kind[kind]
-        hybrid = scores["hybrid"].recall_at_10
-        dense = scores["dense"].recall_at_10
-        lexical = scores["lexical"].recall_at_10
-        if hybrid > dense and hybrid > lexical:
-            return "beats both halves"
-        if hybrid < dense or hybrid < lexical:
-            return "LOSES to a half"
-        return "ties a half (no fusion benefit)"
+        dense_v = self._arm_verdict(scores["hybrid"], scores["dense"])
+        lexical_v = self._arm_verdict(scores["hybrid"], scores["lexical"])
+        n = self.by_kind[kind]["hybrid"].n
+
+        if dense_v == "loss" or lexical_v == "loss":
+            return f"LOSES to a half (95% CI excludes 0, n={n})"
+        if dense_v == "win" and lexical_v == "win":
+            return f"beats both halves (95% CI excludes 0, n={n})"
+        if "noise" in (dense_v, lexical_v):
+            return f"not distinguishable from noise at n={n} (95% CI includes 0)"
+        return f"ties a half (no fusion benefit, n={n})"
 
     @property
     def losing_kinds(self) -> list[str]:
@@ -82,12 +143,14 @@ class Report:
     def aggregate_wins(self) -> bool:
         """Does hybrid beat both halves on the aggregate numbers alone?
 
-        This is necessary but not sufficient: an aggregate can win while hiding
-        a kind that loses (see fusion_is_earning_its_keep).
+        Uses the same win/loss/tie/noise logic as kind_beats_both_halves: a
+        "win" requires the paired delta-CI to exclude zero when per-query
+        scores are available, not just a higher point estimate. This is
+        necessary but not sufficient: an aggregate can win while hiding a kind
+        that loses (see fusion_is_earning_its_keep).
         """
-        hybrid = self.arms["hybrid"].recall_at_10
-        return (
-            hybrid > self.arms["dense"].recall_at_10 and hybrid > self.arms["lexical"].recall_at_10
+        return self._arm_verdict(self.arms["hybrid"], self.arms["dense"]) == "win" and (
+            self._arm_verdict(self.arms["hybrid"], self.arms["lexical"]) == "win"
         )
 
     @property
@@ -153,10 +216,14 @@ def score(
     def summarise(rows: list[tuple[str, list[str], set[str]]]) -> ArmScore:
         if not rows:
             return ArmScore(0.0, 0.0, 0)
+        recall_scores = tuple(recall_at_k(r, rel, 10) for _, r, rel in rows)
+        mrr_scores = tuple(mrr(r, rel) for _, r, rel in rows)
         return ArmScore(
-            recall_at_10=sum(recall_at_k(r, rel, 10) for _, r, rel in rows) / len(rows),
-            mrr=sum(mrr(r, rel) for _, r, rel in rows) / len(rows),
+            recall_at_10=sum(recall_scores) / len(rows),
+            mrr=sum(mrr_scores) / len(rows),
             n=len(rows),
+            recall_scores=recall_scores,
+            mrr_scores=mrr_scores,
         )
 
     arms = {arm: summarise(rows) for arm, rows in raw.items()}
@@ -175,21 +242,37 @@ def score(
     )
 
 
+def _fmt_ci(ci: tuple[float, float] | None) -> str:
+    if ci is None:
+        return ""
+    lo, hi = ci
+    return f" [95% CI {lo:.3f}-{hi:.3f}]"
+
+
 def _print(report: Report) -> None:
     print(f"\nlexical ranker: {report.lexical_ranker}   RRF k={report.k}   limit={report.limit}\n")
-    print(f"{'arm':10} {'Recall@10':>10} {'MRR':>8}")
+    print(f"{'arm':10} {'n':>4} {'Recall@10':>10} {'MRR':>8}")
     print("-" * 30)
     for arm in ("dense", "lexical", "hybrid"):
         s = report.arms[arm]
-        print(f"{arm:10} {s.recall_at_10:>10.3f} {s.mrr:>8.3f}")
+        print(
+            f"{arm:10} {s.n:>4} {s.recall_at_10:>10.3f}{_fmt_ci(s.recall_ci())} "
+            f"{s.mrr:>8.3f}{_fmt_ci(s.mrr_ci())}"
+        )
 
-    print(f"\n{'by kind':10} {'arm':10} {'Recall@10':>10} {'MRR':>8}")
+    print(f"\n{'by kind':10} {'arm':10} {'n':>4} {'Recall@10':>10} {'MRR':>8}")
     print("-" * 42)
     for kind in ("semantic", "lexical", "hybrid"):
         for arm in ("dense", "lexical", "hybrid"):
             s = report.by_kind[kind][arm]
-            print(f"{kind:10} {arm:10} {s.recall_at_10:>10.3f} {s.mrr:>8.3f}")
-        print(f"  verdict [{kind:10}]: hybrid {report.kind_verdict_text(kind)}")
+            print(
+                f"{kind:10} {arm:10} {s.n:>4} {s.recall_at_10:>10.3f}{_fmt_ci(s.recall_ci())} "
+                f"{s.mrr:>8.3f}{_fmt_ci(s.mrr_ci())}"
+            )
+        print(
+            f"  verdict [{kind:10}, n={report.by_kind[kind]['hybrid'].n}]: "
+            f"hybrid {report.kind_verdict_text(kind)}"
+        )
         print()
 
     print("overall verdict:")
@@ -229,7 +312,7 @@ def main() -> None:
         _print(score(k=args.k, limit=args.limit))
         return
 
-    print("Sweeping k. k=60 is a convention, not a law.\n")
+    print("Sweeping k. 60 is the paper's convention; we ship 10. Neither is a law.\n")
     print(f"{'k':>6} {'hybrid R@10':>12} {'hybrid MRR':>12}")
     print("-" * 32)
     best = None
@@ -240,7 +323,17 @@ def main() -> None:
         if best is None or h.mrr > best[1]:
             best = (k, h.mrr)
     print(f"\nBest k by MRR: {best[0]} (MRR {best[1]:.3f})")
-    print("If this is far from 60, update the default in RecallConfig and say why.")
+    # "Best" here is a bare point estimate over 40 queries, and the sweep is
+    # usually flat within noise. This line used to read "if this is far from 60,
+    # update the default" — which is how the default silently drifted 60 -> 10 on
+    # a difference smaller than one query. A sweep ranks; it does not decide.
+    print(
+        "\nThis is the best POINT ESTIMATE, not a finding: the sweep does not test\n"
+        "whether the winner is distinguishable from the shipped default. Before\n"
+        "changing rrf_k, run a paired bootstrap on the two settings\n"
+        "(eval.metrics.paired_bootstrap_delta_ci) and record it in the decision\n"
+        "log in docs/design.md. A default that moves without a number is a guess."
+    )
 
 
 if __name__ == "__main__":

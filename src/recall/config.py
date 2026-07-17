@@ -122,6 +122,22 @@ class RecallConfig:
     embedding_provider: str = "ollama"
     embedding_model: str = "nomic-embed-text"
     embedding_endpoint: str = "http://localhost:11434"
+    # k=10, not the k=60 of Cormack, Clarke and Buettcher (2009). Measured on
+    # the golden set (17 July 2026, real Ollama + real BM25): k=10 vs k=60 is a
+    # statistical wash — paired bootstrap over the 40 queries puts the delta CI
+    # across zero on BOTH metrics (Recall@10 -0.025, 95% CI [-0.075, +0.000];
+    # MRR +0.023, 95% CI [-0.019, +0.076]). So this is NOT a measured win; it is
+    # a defensible prior kept because the evidence does not favour either value:
+    # a low k weights the top of each ranking more heavily, which suits our
+    # top-10-into-an-agent's-context use case (cf. Elastic's weighted-RRF
+    # guidance), and churning a shipped default on a null result would be as
+    # unjustified as the change that introduced it.
+    #
+    # Provenance, because this value has already drifted once in silence: it was
+    # 60, and commit 5bb386d changed it to 10 in a commit whose message only
+    # mentioned fusion weights, contradicting docs/eval/README.md's recorded
+    # "k=60 stays" decision. Nothing said why. If you change it again, say why
+    # here and in docs/design.md's decision log, and bring a number.
     rrf_k: int = 10
     # Convex-combination fusion weights (see store/sql.py for the formula).
     # Equal-weight RRF, measured against the golden set, loses to dense-only

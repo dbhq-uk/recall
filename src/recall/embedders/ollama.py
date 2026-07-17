@@ -2,6 +2,12 @@ from __future__ import annotations
 
 import httpx
 
+from recall.embedders import (
+    DEFAULT_MAX_BATCH_CHARS,
+    DEFAULT_MAX_BATCH_ITEMS,
+    EmbedderRequestRejectedError,
+    batch_by_size,
+)
 from recall.errors import EmbedderUnreachableError
 
 # nomic-embed-text is asymmetric. These prefixes are part of the model's contract.
@@ -11,6 +17,11 @@ QUERY_PREFIX = "search_query: "
 KNOWN_DIMS = {"nomic-embed-text": 768}
 DEFAULT_TIMEOUT = 300.0  # CPU-only boxes are slow; a timeout here is not an error.
 
+# HTTP statuses that mean "the request itself was rejected as malformed/too
+# large", as opposed to any other non-200 (e.g. 404 missing model, 5xx server
+# trouble) which stays EmbedderUnreachableError.
+_REJECTED_STATUSES = {400, 413, 422}
+
 
 class OllamaEmbedder:
     def __init__(
@@ -18,12 +29,16 @@ class OllamaEmbedder:
         model: str = "nomic-embed-text",
         endpoint: str = "http://localhost:11434",
         timeout: float = DEFAULT_TIMEOUT,
+        max_batch_items: int = DEFAULT_MAX_BATCH_ITEMS,
+        max_batch_chars: int = DEFAULT_MAX_BATCH_CHARS,
     ) -> None:
         self.model = model
         self.endpoint = endpoint.rstrip("/")
         self.name = f"ollama:{model}"
         self.dim = KNOWN_DIMS.get(model, 768)
         self._timeout = timeout
+        self._max_batch_items = max_batch_items
+        self._max_batch_chars = max_batch_chars
 
     def _embed(self, inputs: list[str]) -> list[list[float]]:
         url = f"{self.endpoint}/api/embed"
@@ -38,6 +53,16 @@ class OllamaEmbedder:
                 f"recall will not fall back to a different model: a vector from the "
                 f"wrong model is meaningless against the ones already stored."
             ) from exc
+
+        if response.status_code in _REJECTED_STATUSES:
+            raise EmbedderRequestRejectedError(
+                f"Ollama at {self.endpoint} rejected the request as too large or "
+                f"malformed ({response.status_code}): {response.text.strip()}\n"
+                f"recall already splits large indexing batches, but this request "
+                f"still exceeded a limit. If this recurs, lower the embedder's "
+                f"max_batch_items / max_batch_chars, or index fewer/smaller files "
+                f"per run."
+            )
 
         if response.status_code != 200:
             raise EmbedderUnreachableError(
@@ -58,7 +83,11 @@ class OllamaEmbedder:
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
-        return self._embed([f"{DOCUMENT_PREFIX}{t}" for t in texts])
+        prefixed = [f"{DOCUMENT_PREFIX}{t}" for t in texts]
+        vectors: list[list[float]] = []
+        for batch in batch_by_size(prefixed, self._max_batch_items, self._max_batch_chars):
+            vectors.extend(self._embed(batch))
+        return vectors
 
     def embed_query(self, text: str) -> list[float]:
         return self._embed([f"{QUERY_PREFIX}{text}"])[0]

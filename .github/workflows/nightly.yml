@@ -56,9 +56,133 @@ jobs:
 
       - run: uv run pytest -m ollama
 
-      # TODO(eval-harness): eval/harness.py does not exist yet — it is a later
-      # task (see CLAUDE.md "Testing": golden queries are the only number that
-      # matters). Once it exists, add a step here that runs it against the
-      # golden set with a real Ollama embedder and real Postgres, and surfaces
-      # dense-only / lexical-only / hybrid numbers side by side in the job
-      # summary. Do not stub it out before it exists.
+  golden-harness:
+    name: golden queries (real Ollama + real BM25)
+    runs-on: ubuntu-latest
+    # CLAUDE.md: "Golden queries are the only number that matters." Until this
+    # job existed, that number was never measured in CI at all — only ad hoc, on
+    # whichever laptop happened to run it. A quality claim nobody re-checks is
+    # exactly the kind of thing this project refuses to ship.
+    #
+    # This runs against ParadeDB (real BM25) and real Ollama embeddings, i.e.
+    # the configuration we actually recommend — not a fallback approximation of
+    # it. It reports; it does not gate. See the note on the summary step.
+    services:
+      postgres:
+        image: paradedb/paradedb:latest
+        env:
+          POSTGRES_USER: recall
+          POSTGRES_DB: recall
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U recall -d recall"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      RECALL_DATABASE_URL: postgresql://recall@localhost:5432/recall
+      RECALL_CONFIG_DIR: ${{ github.workspace }}/.recall-ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --locked --extra eval
+
+      - name: Install Ollama
+        run: curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Cache the Ollama model
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: ollama-models-${{ env.OLLAMA_MODEL }}
+
+      - name: Start Ollama
+        run: |
+          ollama serve &
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:11434/api/version && break
+            sleep 1
+          done
+
+      - name: Pull ${{ env.OLLAMA_MODEL }}
+        run: ollama pull "$OLLAMA_MODEL"
+
+      # Same reasoning as ci.yml's integration jobs: assert the service container
+      # is genuinely in the state this job claims, rather than discovering it via
+      # confusing failures later. A golden run against a silent ts_rank_cd
+      # fallback would be measuring a config we do not recommend and reporting it
+      # as if we did.
+      - name: Verify pg_search is genuinely preloaded and creatable
+        run: |
+          uv run python - <<'PY'
+          import psycopg
+
+          with psycopg.connect("postgresql://recall@localhost:5432/recall") as conn:
+              with conn.cursor() as cur:
+                  cur.execute("SHOW shared_preload_libraries")
+                  preload = cur.fetchone()[0]
+                  print(f"shared_preload_libraries = {preload!r}")
+                  assert "pg_search" in preload, (
+                      "pg_search is not in shared_preload_libraries — this job would "
+                      "measure the ts_rank_cd fallback while claiming to measure BM25."
+                  )
+                  cur.execute("CREATE EXTENSION IF NOT EXISTS pg_search")
+              conn.commit()
+          print("pg_search verified live on this service container.")
+          PY
+
+      - name: Index the fixture corpus
+        run: |
+          uv run recall init
+          uv run recall register eval/fixture
+          uv run recall index fixture
+
+      # Fail loudly if the index is empty or the lexical half is not real BM25.
+      # Scoring an empty index would print a tidy table of zeros and look like a
+      # measurement rather than a broken run.
+      - name: Verify the index is real before scoring it
+        run: |
+          uv run python - <<'PY'
+          from recall.config import load_config
+          from recall.store.pgvector import PgVectorStore
+
+          stats = PgVectorStore(load_config().database_url).stats()
+          print(f"chunks={stats.total_chunks} ranker={stats.lexical_ranker} model={stats.embedding_model}")
+          assert stats.total_chunks > 0, "fixture indexed to zero chunks — nothing to score"
+          assert stats.lexical_ranker == "bm25", (
+              f"lexical ranker is {stats.lexical_ranker!r}, not bm25 — this run would "
+              "report fallback numbers under a BM25 heading."
+          )
+          PY
+
+      - name: Score the golden set
+        run: |
+          uv run python -m eval.harness | tee harness-output.txt
+
+      # The numbers go in the job summary so they are readable without opening
+      # logs, and so a human skimming the nightly can see a regression.
+      #
+      # This job deliberately does NOT fail on a bad verdict. The golden set is
+      # 40 self-authored queries; per-kind arms are n=10-15, which is small
+      # enough that a hard gate would fire on noise and get muted within a week —
+      # and a muted gate is worse than no gate. Read the intervals in the output.
+      # Revisit gating once the set is large enough for the paired delta CIs to
+      # be tight (see docs/eval/README.md).
+      - name: Publish the numbers to the job summary
+        if: always()
+        run: |
+          {
+            echo '## Golden query results'
+            echo
+            echo 'Real Ollama (`'"$OLLAMA_MODEL"'`) + real BM25 (ParadeDB).'
+            echo 'Reported, not gated — see the comment in nightly.yml for why.'
+            echo
+            echo '```'
+            cat harness-output.txt || echo 'harness did not produce output'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
