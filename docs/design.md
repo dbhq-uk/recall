@@ -361,6 +361,42 @@ revisit and bring a number.
 changed silently, against a recorded decision, in a commit about fusion
 weights. Hence this log.
 
+### nomic-embed-text-v2-MoE: a dense win that doesn't survive fusion *(17 July 2026)*
+
+**Question.** External research flagged `nomic-embed-text-v2-MoE` as the
+highest-ROI upgrade — "stronger and ~5× faster on CPU, an unambiguous win."
+Should we switch the default embedder?
+
+**Measurement.** Both models indexed the *same* BEIR SciFact corpus (5,746
+chunks) scifact-only, changing only the embedder. 300 queries, NDCG@10, paired
+bootstrap. The lexical arm scored identically across both (0.6446 = 0.6446),
+confirming only the embedder moved.
+
+| arm | v1 | v2-MoE | delta | 95% CI | verdict |
+|---|---|---|---|---|---|
+| dense | 0.7039 | 0.7270 | +0.0231 | [+0.003, +0.045] | v2-MoE wins |
+| lexical | 0.6446 | 0.6446 | 0 | [0, 0] | control |
+| hybrid | 0.7147 | 0.7283 | +0.0136 | [−0.008, +0.036] | indistinguishable |
+
+Clean speed benchmark (200 docs, no CPU contention): v1 63.3 docs/min, v2-MoE
+60.5 — comparable, ~4.5% apart.
+
+**Decision.** Do **not** switch the default on this evidence. v2-MoE genuinely
+improves the *dense* retriever, but the gain does not reach the *hybrid* output
+recall ships (fusion with the unchanged lexical half dilutes it), and it is not
+faster. It becomes worth adopting only under dense-leaning fusion, or if a
+second corpus (NFCorpus, harder for dense) shifts the balance. The "unambiguous
+win" framing was wrong on all three axes (dense-only, hybrid, speed); the "5×
+faster" was a mis-transcription (that figure is v2-MoE vs 1024-dim models, not
+vs v1). Full write-up: `docs/research/Recall_ReviewNextSteps_Research_20260717/bakeoff-results.md`.
+
+**Follow-up that outranks this.** The bake-off setup revealed that recall's
+published BEIR numbers were computed on a multi-corpus index. BM25 IDF is
+global to the index; the `source` filter selects rows but not corpus
+statistics (verified: `paradedb.score` is identical whether a query is scoped
+to one source or three). The README's external-benchmark table — the repo's
+strongest credibility claim — should be regenerated on single-corpus indexes.
+
 ### Fusion does not currently beat dense-only on the fixture *(17 July 2026)*
 
 Measured in the same run, `w_dense=0.7 / w_lexical=0.3`, k=10:

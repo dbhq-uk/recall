@@ -72,6 +72,8 @@ The same sweep should include a second challenger. **`qwen3-embedding`** is also
 
 The experiment design writes itself given the existing harness: three arms (v1, v2-MoE, qwen3-0.6b) × three metrics surfaces (golden fixture, BEIR SciFact, BEIR NFCorpus), decided on NDCG@10/MRR with bootstrap intervals (see Finding 4). The one-model-per-database invariant means each arm is a reindex, which recall already supports.
 
+**Update (17 July 2026): the v1-vs-v2-MoE arm was run on BEIR SciFact — see [`bakeoff-results.md`](bakeoff-results.md).** The result corrects this section's own framing: v2-MoE is a *significant dense* improvement (+0.023 NDCG@10, CI excludes zero) that **does not survive fusion** (hybrid delta indistinguishable from noise), and is **speed-comparable**, not faster. "Highest-ROI, unambiguous win" was wrong; it is a conditional, dense-leaning win. The run also surfaced a higher-priority finding — recall's published BEIR numbers were computed on a **confounded multi-corpus index** (BM25 IDF is global; the `source` filter does not isolate it), which the README should be regenerated to fix. The qwen3 arm remains unrun and is now known to need a per-model prefix strategy first (recall applies nomic's prefixes unconditionally).
+
 ---
 
 ## Finding 3 — The lexical backend ground is shifting under pg_search; recall should hedge, cheaply
