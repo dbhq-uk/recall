@@ -242,6 +242,38 @@ def evaluate_run(
     return {name: float(value) for name, value in scores.items()}
 
 
+def per_query_scores(
+    qrels: dict[str, dict[str, int]], run: dict[str, dict[str, float]], k: int = 10
+) -> dict[str, float]:
+    """NDCG@k per query, keyed by query_id -- the input a paired test needs.
+
+    evaluate_run returns means. A mean cannot answer "is arm A better than arm
+    B?", because averaging throws away the pairing: the same query scored by
+    two arms is one observation of a difference, and that is where the signal
+    is. Comparing two embedders on aggregate NDCG alone is exactly how a null
+    result gets read as a win (see docs/design.md's decision log for the time
+    this repo did that to itself with rrf_k).
+
+    Feed these into eval.metrics.paired_bootstrap_delta_ci to get an interval
+    on the difference. ranx is imported lazily for the same reason as in
+    evaluate_run -- it lives in the optional `eval` extra.
+    """
+    from ranx import Qrels, Run, evaluate
+
+    scores = evaluate(
+        Qrels(qrels),
+        Run(run),
+        [f"ndcg@{k}"],
+        make_comparable=True,
+        return_mean=False,
+    )
+    # ranx returns per-query scores in the order of its own query index, not
+    # in dict order -- key them explicitly rather than trusting a zip against
+    # qrels, or the two arms could silently align to different queries.
+    query_order = list(Qrels(qrels).qrels.keys())
+    return {qid: float(value) for qid, value in zip(query_order, scores, strict=True)}
+
+
 def print_report(dataset: str, arm_scores: dict[str, dict[str, float]]) -> None:
     """Table of our dense/lexical/hybrid NDCG@10 vs published baselines.
 

@@ -20,6 +20,7 @@ from eval.beir import (
     load_qrels,
     load_queries,
     materialise_corpus,
+    per_query_scores,
     pool_chunks_to_docs,
     print_report,
     ranked_run_from_paths,
@@ -324,3 +325,46 @@ def test_our_rrf_matches_ranx_reference():
     # Scores agree too, to floating-point precision -- not just the order.
     for doc_id in our_scored:
         assert our_scored[doc_id] == pytest.approx(float(ranx_scored[doc_id]), rel=1e-9)
+
+
+# ---------------------------------------------------------------------------
+# per_query_scores -- the input a paired comparison needs.
+#
+# evaluate_run returns means, which cannot answer "is arm A better than arm
+# B": a mean has no pairing, so there is nothing to bootstrap. Comparing two
+# embedders on aggregate NDCG alone is how you mistake noise for a finding.
+# ---------------------------------------------------------------------------
+
+
+@requires_ranx
+def test_per_query_scores_returns_one_score_per_query_keyed_by_query_id():
+    qrels = {"q1": {"d1": 1}, "q2": {"d2": 1}}
+    # q1 ranks its relevant doc first (NDCG 1.0); q2 never returns it (0.0).
+    run = {"q1": {"d1": 3.0}, "q2": {"d9": 3.0}}
+    scores = per_query_scores(qrels, run, k=10)
+    assert set(scores) == {"q1", "q2"}
+    assert scores["q1"] == pytest.approx(1.0)
+    assert scores["q2"] == pytest.approx(0.0)
+
+
+@requires_ranx
+def test_per_query_scores_mean_matches_evaluate_run():
+    """The per-query scores must be the same numbers evaluate_run averages.
+
+    If these two ever disagree, one of them is lying about the same run.
+    """
+    qrels = {"q1": {"d1": 1, "d2": 1}, "q2": {"d3": 1}}
+    run = {"q1": {"d1": 3.0, "d9": 2.0, "d2": 1.0}, "q2": {"d3": 1.0}}
+    per_query = per_query_scores(qrels, run, k=10)
+    mean = sum(per_query.values()) / len(per_query)
+    assert mean == pytest.approx(evaluate_run(qrels, run, k=10)["ndcg@10"])
+
+
+@requires_ranx
+def test_per_query_scores_aligns_two_arms_on_the_same_queries():
+    """Two arms over the same qrels must yield dicts with identical keys --
+    that alignment is what makes the paired bootstrap valid."""
+    qrels = {"q1": {"d1": 1}, "q2": {"d2": 1}}
+    arm_a = per_query_scores(qrels, {"q1": {"d1": 1.0}, "q2": {"d2": 1.0}}, k=10)
+    arm_b = per_query_scores(qrels, {"q1": {"d9": 1.0}, "q2": {"d2": 1.0}}, k=10)
+    assert set(arm_a) == set(arm_b) == set(qrels)
