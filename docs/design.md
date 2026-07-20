@@ -261,20 +261,24 @@ benchmark to settle the question: [BEIR](https://github.com/beir-cellar/beir)
 (Thakur et al., 2021), which ships fixed corpora, fixed queries and
 published baselines for BM25, DPR, ANCE, TAS-B and ColBERT.
 
-**BEIR SciFact** (5,183 docs, 300 queries), NDCG@10: recall hybrid **0.711**,
-recall dense-only 0.700, ColBERT (published) 0.671, BM25 (published) 0.665,
-TAS-B (published) 0.643, recall lexical-only 0.639, ANCE (published) 0.507,
+*(Numbers corrected 18 July 2026 — see the decision-log entry below on the
+single-corpus indexing fix. The earlier figures were measured on a shared
+index and were slightly off.)*
+
+**BEIR SciFact** (5,183 docs, 300 queries), NDCG@10: recall hybrid **0.715**,
+recall dense-only 0.704, ColBERT (published) 0.671, BM25 (published) 0.665,
+recall lexical-only 0.645, TAS-B (published) 0.643, ANCE (published) 0.507,
 DPR (published) 0.318.
 
 **BEIR NFCorpus** (3,633 docs, 323 queries), NDCG@10: recall hybrid
-**0.339**, BM25 (published) 0.325, recall dense-only 0.320, TAS-B
-(published) 0.319, ColBERT (published) 0.305, recall lexical-only 0.303,
+**0.348**, recall dense-only 0.338, BM25 (published) 0.325, TAS-B
+(published) 0.319, ColBERT (published) 0.305, recall lexical-only 0.298,
 ANCE (published) 0.237, DPR (published) 0.189.
 
 **The vindication: fusion beats both halves on both datasets**
-(SciFact 0.711 > 0.700 > 0.639; NFCorpus 0.339 > 0.320 > 0.303), and
-recall's hybrid beats the published BM25 baseline on both (+0.046 SciFact,
-+0.014 NFCorpus). This confirms the design's central bet — stated at the top
+(SciFact 0.715 > 0.704 > 0.645; NFCorpus 0.348 > 0.338 > 0.298), and
+recall's hybrid beats the published BM25 baseline on both (+0.050 SciFact,
++0.023 NFCorpus). This confirms the design's central bet — stated at the top
 of this document — that fusing BM25 and dense retrieval with RRF outperforms
 either half alone. The fixture's contrary result was the fixture's own
 artefact, not the truth about recall.
@@ -282,7 +286,7 @@ artefact, not the truth about recall.
 Two caveats keep this honest rather than triumphant. BEIR documents are
 short abstracts (roughly 1.1 chunks per document), so this validates
 recall's **ranking and fusion**, not its chunking. And our lexical arm sits
-−0.026 (SciFact) / −0.022 (NFCorpus) below published BM25, inside the ±0.05
+−0.020 (SciFact) / −0.027 (NFCorpus) below published BM25, inside the ±0.05
 band that Kamalloo et al. (SIGIR 2024) attribute to ordinary
 index-configuration differences — i.e. our BM25 reproduces the reference
 rather than merely resembling it.
@@ -360,6 +364,40 @@ revisit and bring a number.
 **Process note.** The real defect was never the value. It was that a default
 changed silently, against a recorded decision, in a commit about fusion
 weights. Hence this log.
+
+### BEIR numbers regenerated on single-corpus indexes *(18 July 2026)*
+
+**Problem.** The published BEIR numbers were measured with SciFact and
+NFCorpus sharing one database (alongside the fixture and personal notes).
+ParadeDB `pg_search` computes BM25 statistics (IDF, avg doc length) over the
+whole index; the `source` filter selects returned rows but not the corpus the
+statistics come from. Verified directly: `paradedb.score` for a query is
+byte-identical whether the query is scoped to one source or three. So the
+foreign corpora were shaping each dataset's BM25 scores — invalid for BEIR,
+where the index is meant to *be* the corpus.
+
+**Fix.** Regenerated each dataset on its own single-corpus index (current
+code, `nomic-embed-text`). Corrected numbers are in "Measured results: BEIR"
+above; the README table matches.
+
+**What moved, and an honest note on attribution.** The lexical arm is the one
+the confound directly touches, and it is the one that can be compared cleanly
+(BM25 ignores embeddings, and the chunk *content* is identical across indexes):
+NFCorpus lexical read 0.303 on the shared index vs 0.298 isolated — the shared
+index modestly *inflated* it. The dense and hybrid arms also moved (NFCorpus
+dense 0.320 → 0.338), but that is **not** the confound: dense retrieval is
+corpus-composition-independent, so an identical-content dense change means the
+old shared index also held *stale document vectors* (embeddings deterministic;
+same text, different vector ⇒ different `embed_text` at index time). In other
+words the old index was wrong for two independent reasons — shared BM25
+statistics and stale vectors — and single-corpus regeneration fixes both.
+Five of six numbers went up; correcting the method made recall look better,
+which is a comfortable place to be honest from.
+
+**Reproduce.** One corpus per database:
+`RECALL_DATABASE_URL=…/recall_scifact python -m eval.beir --dataset scifact --tag beir-scifact --index`,
+same for nfcorpus. Never score a BEIR dataset from a database that holds
+anything else.
 
 ### nomic-embed-text-v2-MoE: a dense win that doesn't survive fusion *(17 July 2026)*
 

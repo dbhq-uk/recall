@@ -98,9 +98,16 @@ BEIR assumes the index *is* the corpus.
 The effect is visible: clean scifact-only lexical NDCG@10 is **0.6446**, the
 mixed-index value was **0.6466**, and the README publishes **0.639**. Small
 here, but it is a real methodological hole in the repo's most load-bearing
-credibility claim (external, published-baseline-comparable numbers). The
-README's BEIR table should be regenerated on single-corpus indexes before it is
-cited again. Filed as the highest-priority follow-up.
+credibility claim (external, published-baseline-comparable numbers).
+
+**Resolved 18 July 2026.** The README and `docs/design.md` BEIR tables were
+regenerated on single-corpus indexes; see the "BEIR numbers regenerated on
+single-corpus indexes" entry in the design decision log. The regeneration also
+surfaced that the *old* shared index held stale document vectors (identical
+text embedding to different vectors than current code), so the dense/hybrid
+arms moved too — not from the confound (dense is composition-independent) but
+from vector staleness. Both are fixed by single-corpus regeneration under
+current code. Five of six published numbers went up.
 
 ## Reproduce
 
