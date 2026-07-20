@@ -1,0 +1,24 @@
+{
+  "query": "Review the recall repo (local-first hybrid retrieval MCP server: BM25 + dense vectors + RRF) and research improvements and next steps",
+  "mode": "standard",
+  "date": "2026-07-17",
+  "output_base": "docs/research (git root)",
+  "provider": "Bright Data SERP via bd_search.py; internal repo audit subagent (sonnet); prior internal report 2026-07-16 reused as grounding",
+  "assumptions": [
+    "Technical audience (the recall maintainers)",
+    "Prior report docs/research/HybridRetrieval_BestImplementation_20260716 remains valid; this run does not re-litigate fusion/reranking science",
+    "Local-first, CPU-only, MIT-licensable remain hard constraints",
+    "Top-10 retrieval feeding an agent context window is the use pattern"
+  ],
+  "searches": [
+    "nomic-embed-text-v2-moe ollama available",
+    "ParadeDB pg_search release 2026 BM25 postgres extension changelog",
+    "MCP server semantic code search coding agents 2026 claude-context alternatives",
+    "incremental reindexing file watcher embeddings index code retrieval merkle",
+    "best local embedding model 2026 CPU ollama qwen3 embedding snowflake arctic",
+    "qwen3-embedding ollama CPU retrieval benchmark 2026",
+    "pg_textsearch timescale BM25 postgres extension license tantivy",
+    "claude-context merkle tree incremental sync code indexing zilliz",
+    "pg_search AGPL license concerns postgres bm25"
+  ]
+}

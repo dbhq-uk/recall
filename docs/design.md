@@ -133,7 +133,9 @@ This is deliberately the opposite of the norm in this space, where a missing lex
 
 ## Fusion: RRF
 
-Reciprocal Rank Fusion, per Cormack, Clarke and Buettcher (2009). Each half retrieves a pool of `limit * 3`, and a document's score is the sum of `1 / (k + rank)` across the halves it appears in. Default `k = 60`, configurable.
+Reciprocal Rank Fusion, per Cormack, Clarke and Buettcher (2009). Each half retrieves a pool of `limit * 3`, and a document's score is the sum of `1 / (k + rank)` across the halves it appears in. Configurable, and generalised to a weighted convex combination (see `store/sql.py`).
+
+**Default `k = 10`, not the paper's 60** — and deliberately not presented as a measured win. On the golden set the two are statistically indistinguishable (see the decision log). It is kept as a prior that suits a top-10 use case, not as a result. See `RecallConfig.rrf_k` for the numbers and the provenance.
 
 In pgvector this is a single SQL statement, which is the main aesthetic argument for the Postgres backend:
 
@@ -162,7 +164,7 @@ ORDER BY score DESC
 LIMIT :limit;
 ```
 
-RRF's `k = 60` is a convention, not a law. The literature is clear that it is sensitive to tuning and that convex combination can beat it. Treat 60 as a starting point and let the golden query set decide.
+RRF's `k = 60` is a convention, not a law. The literature is clear that it is sensitive to tuning and that convex combination can beat it. We let the golden set decide, and it declined to: `k=10` and `k=60` are statistically indistinguishable on our corpus (decision log, 17 July 2026). We ship 10 as a prior suited to top-10 retrieval, not as a measured win — and we say so rather than dressing a null result up as tuning.
 
 ## Chunking
 
@@ -259,20 +261,24 @@ benchmark to settle the question: [BEIR](https://github.com/beir-cellar/beir)
 (Thakur et al., 2021), which ships fixed corpora, fixed queries and
 published baselines for BM25, DPR, ANCE, TAS-B and ColBERT.
 
-**BEIR SciFact** (5,183 docs, 300 queries), NDCG@10: recall hybrid **0.711**,
-recall dense-only 0.700, ColBERT (published) 0.671, BM25 (published) 0.665,
-TAS-B (published) 0.643, recall lexical-only 0.639, ANCE (published) 0.507,
+*(Numbers corrected 18 July 2026 — see the decision-log entry below on the
+single-corpus indexing fix. The earlier figures were measured on a shared
+index and were slightly off.)*
+
+**BEIR SciFact** (5,183 docs, 300 queries), NDCG@10: recall hybrid **0.715**,
+recall dense-only 0.704, ColBERT (published) 0.671, BM25 (published) 0.665,
+recall lexical-only 0.645, TAS-B (published) 0.643, ANCE (published) 0.507,
 DPR (published) 0.318.
 
 **BEIR NFCorpus** (3,633 docs, 323 queries), NDCG@10: recall hybrid
-**0.339**, BM25 (published) 0.325, recall dense-only 0.320, TAS-B
-(published) 0.319, ColBERT (published) 0.305, recall lexical-only 0.303,
+**0.348**, recall dense-only 0.338, BM25 (published) 0.325, TAS-B
+(published) 0.319, ColBERT (published) 0.305, recall lexical-only 0.298,
 ANCE (published) 0.237, DPR (published) 0.189.
 
 **The vindication: fusion beats both halves on both datasets**
-(SciFact 0.711 > 0.700 > 0.639; NFCorpus 0.339 > 0.320 > 0.303), and
-recall's hybrid beats the published BM25 baseline on both (+0.046 SciFact,
-+0.014 NFCorpus). This confirms the design's central bet — stated at the top
+(SciFact 0.715 > 0.704 > 0.645; NFCorpus 0.348 > 0.338 > 0.298), and
+recall's hybrid beats the published BM25 baseline on both (+0.050 SciFact,
++0.023 NFCorpus). This confirms the design's central bet — stated at the top
 of this document — that fusing BM25 and dense retrieval with RRF outperforms
 either half alone. The fixture's contrary result was the fixture's own
 artefact, not the truth about recall.
@@ -280,7 +286,7 @@ artefact, not the truth about recall.
 Two caveats keep this honest rather than triumphant. BEIR documents are
 short abstracts (roughly 1.1 chunks per document), so this validates
 recall's **ranking and fusion**, not its chunking. And our lexical arm sits
-−0.026 (SciFact) / −0.022 (NFCorpus) below published BM25, inside the ±0.05
+−0.020 (SciFact) / −0.027 (NFCorpus) below published BM25, inside the ±0.05
 band that Kamalloo et al. (SIGIR 2024) attribute to ordinary
 index-configuration differences — i.e. our BM25 reproduces the reference
 rather than merely resembling it.
@@ -323,8 +329,134 @@ literature review live in `eval/beir.py`, `eval/swebench.py` and
 
 recall draws on published information-retrieval literature (Reciprocal Rank Fusion: Cormack, Clarke and Buettcher, 2009; BM25: Robertson and Spärck Jones), on the public documentation of pgvector, Postgres, ParadeDB pg_search, LanceDB, Ollama and MCP, and on the wider prior art in code- and note-retrieval tooling. The techniques it uses — rank fusion, dense + lexical hybrid retrieval, heading-aware chunking — are standard and unencumbered. Its own code is original to this repository.
 
+## Decision log
+
+Decisions that changed a default or closed an open question, with the evidence.
+This section exists because `rrf_k` once drifted from 60 to 10 inside a commit
+about something else, contradicting a recorded decision, and nobody could later
+say why. A default without a paper trail is a guess wearing a lab coat.
+
+### `rrf_k` stays 10, and it is not a measured win *(17 July 2026)*
+
+**Question.** `RecallConfig.rrf_k` shipped as 10 while this document and
+`docs/eval/README.md` both said 60 — the latter having explicitly concluded
+"k=60 stays". Which is right?
+
+**Measurement.** Golden set (40 queries), real Ollama `nomic-embed-text`, real
+BM25 via pg_search, `limit=10`. Paired bootstrap over queries, 2000 resamples:
+
+| comparison | delta (k=10 − k=60) | 95% CI | verdict |
+|---|---:|---|---|
+| Recall@10 | −0.025 | [−0.075, +0.000] | includes 0 — indistinguishable |
+| MRR | +0.023 | [−0.019, +0.076] | includes 0 — indistinguishable |
+
+The full sweep is flat: Recall@10 sits at 0.875–0.900 across every k from 1 to
+200, and MRR declines gently from 0.720 (k=1) to 0.622 (k≥60). Every movement
+is within noise for n=40.
+
+**Decision.** Keep 10; fix the docs, not the code. The evidence favours neither
+value, so churning a shipped default would repeat the original error in the
+opposite direction. A low k weights the head of each ranking more heavily,
+which suits retrieval feeding an agent's top-10 context. This is recorded as a
+**prior, not a result** — if the golden set grows enough to separate them,
+revisit and bring a number.
+
+**Process note.** The real defect was never the value. It was that a default
+changed silently, against a recorded decision, in a commit about fusion
+weights. Hence this log.
+
+### BEIR numbers regenerated on single-corpus indexes *(18 July 2026)*
+
+**Problem.** The published BEIR numbers were measured with SciFact and
+NFCorpus sharing one database (alongside the fixture and personal notes).
+ParadeDB `pg_search` computes BM25 statistics (IDF, avg doc length) over the
+whole index; the `source` filter selects returned rows but not the corpus the
+statistics come from. Verified directly: `paradedb.score` for a query is
+byte-identical whether the query is scoped to one source or three. So the
+foreign corpora were shaping each dataset's BM25 scores — invalid for BEIR,
+where the index is meant to *be* the corpus.
+
+**Fix.** Regenerated each dataset on its own single-corpus index (current
+code, `nomic-embed-text`). Corrected numbers are in "Measured results: BEIR"
+above; the README table matches.
+
+**What moved, and an honest note on attribution.** The lexical arm is the one
+the confound directly touches, and it is the one that can be compared cleanly
+(BM25 ignores embeddings, and the chunk *content* is identical across indexes):
+NFCorpus lexical read 0.303 on the shared index vs 0.298 isolated — the shared
+index modestly *inflated* it. The dense and hybrid arms also moved (NFCorpus
+dense 0.320 → 0.338), but that is **not** the confound: dense retrieval is
+corpus-composition-independent, so an identical-content dense change means the
+old shared index also held *stale document vectors* (embeddings deterministic;
+same text, different vector ⇒ different `embed_text` at index time). In other
+words the old index was wrong for two independent reasons — shared BM25
+statistics and stale vectors — and single-corpus regeneration fixes both.
+Five of six numbers went up; correcting the method made recall look better,
+which is a comfortable place to be honest from.
+
+**Reproduce.** One corpus per database:
+`RECALL_DATABASE_URL=…/recall_scifact python -m eval.beir --dataset scifact --tag beir-scifact --index`,
+same for nfcorpus. Never score a BEIR dataset from a database that holds
+anything else.
+
+### nomic-embed-text-v2-MoE: a dense win that doesn't survive fusion *(17 July 2026)*
+
+**Question.** External research flagged `nomic-embed-text-v2-MoE` as the
+highest-ROI upgrade — "stronger and ~5× faster on CPU, an unambiguous win."
+Should we switch the default embedder?
+
+**Measurement.** Both models indexed the *same* BEIR SciFact corpus (5,746
+chunks) scifact-only, changing only the embedder. 300 queries, NDCG@10, paired
+bootstrap. The lexical arm scored identically across both (0.6446 = 0.6446),
+confirming only the embedder moved.
+
+| arm | v1 | v2-MoE | delta | 95% CI | verdict |
+|---|---|---|---|---|---|
+| dense | 0.7039 | 0.7270 | +0.0231 | [+0.003, +0.045] | v2-MoE wins |
+| lexical | 0.6446 | 0.6446 | 0 | [0, 0] | control |
+| hybrid | 0.7147 | 0.7283 | +0.0136 | [−0.008, +0.036] | indistinguishable |
+
+Clean speed benchmark (200 docs, no CPU contention): v1 63.3 docs/min, v2-MoE
+60.5 — comparable, ~4.5% apart.
+
+**Decision.** Do **not** switch the default on this evidence. v2-MoE genuinely
+improves the *dense* retriever, but the gain does not reach the *hybrid* output
+recall ships (fusion with the unchanged lexical half dilutes it), and it is not
+faster. It becomes worth adopting only under dense-leaning fusion, or if a
+second corpus (NFCorpus, harder for dense) shifts the balance. The "unambiguous
+win" framing was wrong on all three axes (dense-only, hybrid, speed); the "5×
+faster" was a mis-transcription (that figure is v2-MoE vs 1024-dim models, not
+vs v1). Full write-up: `docs/research/Recall_ReviewNextSteps_Research_20260717/bakeoff-results.md`.
+
+**Follow-up that outranks this.** The bake-off setup revealed that recall's
+published BEIR numbers were computed on a multi-corpus index. BM25 IDF is
+global to the index; the `source` filter selects rows but not corpus
+statistics (verified: `paradedb.score` is identical whether a query is scoped
+to one source or three). The README's external-benchmark table — the repo's
+strongest credibility claim — should be regenerated on single-corpus indexes.
+
+### Fusion does not currently beat dense-only on the fixture *(17 July 2026)*
+
+Measured in the same run, `w_dense=0.7 / w_lexical=0.3`, k=10:
+
+| arm | Recall@10 | MRR |
+|---|---|---|
+| dense | 0.900 [0.800–0.975] | 0.735 [0.617–0.849] |
+| lexical | 0.725 [0.575–0.850] | 0.510 [0.371–0.646] |
+| **hybrid** | 0.875 [0.774–0.975] | 0.645 [0.530–0.761] |
+
+Hybrid loses to dense-only on both metrics on this corpus. On `semantic`
+queries the hybrid-vs-dense delta is *not* distinguishable from noise at n=15;
+on `lexical` and `hybrid` kinds every arm saturates Recall@10 at 1.000, so
+fusion has nothing to add there. This is consistent with the BEIR results
+(where hybrid does win on external, un-authored corpora) and with the
+literature's "strong first stage" finding — see `docs/research/`. It is
+recorded here rather than quietly averaged away. The honest reading: on a
+small, semantic-skewed, self-authored fixture, a strong dense retriever is
+hard to improve on by fusing a weak lexical half into it.
+
 ## Open questions
 
-- **`k = 60` is a default, not an answer.** Tune against the golden set once it exists; convex combination may beat RRF outright.
-- **English-only tsvector.** `to_tsvector('english', ...)` is hardcoded. Fine for now, wrong for a public tool eventually.
-- **Chunk size targets are guesses.** ~200 char floor and ~2000 char ceiling are plausible, not measured. The golden set should settle them.
+- **Fusion's value is corpus-dependent and we should say so.** It wins on BEIR, loses on our fixture. The open question is not "is RRF good" but "for which query distributions does the lexical half add signal rather than noise" — per-query adaptive weighting is the literature's answer and is unbuilt here.
+- **English-only tsvector.** `to_tsvector('english', ...)` is hardcoded. Fine for now, wrong for a public tool eventually. Untested against non-Latin scripts: we do not currently know whether a non-English query degrades to zero lexical hits (correctly reported as dense-only) or does something stranger.
+- **Chunk size targets are guesses.** ~200 char floor and ~2000 char ceiling are plausible, not measured. The golden set should settle them — the harness sweeps `k` but has no equivalent sweep over chunk size, so this question is still open for the same reason it always was: nobody built the measurement.

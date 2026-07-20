@@ -108,6 +108,42 @@ def test_indexing_an_unknown_tag_lists_the_known_tags(store_factory, source):
         index_source("nope", registry=Registry.load(), store=store, embedder=FakeEmbedder(dim=8))
 
 
+def test_a_code_file_with_no_grammar_available_is_counted_as_fallback_chunked(
+    store_factory, source, monkeypatch
+):
+    """Honest-failure requirement: chunking that silently degraded to line
+    windows (grammar unavailable) must be visible on the report, not just
+    invisible-but-present in the store.
+
+    We don't need a language whose grammar is genuinely missing in this
+    environment — we only need to prove index_source correctly reads and
+    aggregates chunk_code's `.fell_back` flag, whatever set it. The condition
+    that actually sets the flag is covered by tests/test_chunk_code.py.
+    """
+    import recall.chunkers.code as code_mod
+
+    (source / "notes" / "script.sh").write_text("#!/bin/bash\necho hi\n")
+    (source / ".recall.toml").write_text(
+        '[source]\ntag = "brain"\ninclude = ["**/*.md", "**/*.sh"]\n'
+    )
+    store = store_factory(dim=8)
+    emb = FakeEmbedder(dim=8)
+
+    real_chunk_code = code_mod.chunk_code
+
+    def fake_chunk_code(text, **kw):
+        result = real_chunk_code(text, **kw)
+        if kw.get("lang") == "bash":
+            result.fell_back = True
+        return result
+
+    monkeypatch.setattr(code_mod, "chunk_code", fake_chunk_code)
+
+    report = index_source("brain", registry=Registry.load(), store=store, embedder=emb)
+
+    assert report.files_fallback_chunked == 1
+
+
 def test_the_embedded_text_carries_the_heading_trail(store_factory, source):
     """End-to-end proof that the trail survives all the way to the embedder."""
     seen: list[str] = []

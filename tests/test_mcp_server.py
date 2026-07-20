@@ -10,8 +10,13 @@ pytestmark = [pytest.mark.integration, requires_postgres]
 
 @pytest.fixture(autouse=True)
 def env(tmp_path, monkeypatch):
+    import recall.mcp_server as m
+
     monkeypatch.setenv("RECALL_CONFIG_DIR", str(tmp_path / "cfg"))
     monkeypatch.setenv("RECALL_DATABASE_URL", TEST_DSN)
+    # A cached _store_cache/_embedder_cache from an earlier test (one that
+    # didn't monkeypatch _store/build_embedder) must never leak into this one.
+    m.reset_caches()
 
 
 @pytest.fixture
@@ -121,6 +126,55 @@ def test_STATUS_WARNS_ON_THE_FALLBACK_RANKER(store_factory, tmp_path, monkeypatc
     out = recall_status()
     assert out["lexical_ranker"] == "ts_rank_cd"
     assert any("not BM25" in w for w in out["warnings"])
+
+
+def test_search_rejects_a_zero_limit(indexed):
+    from recall.errors import InvalidLimitError
+
+    with pytest.raises(InvalidLimitError, match="0"):
+        recall_search(query="pop-top", sources=["brain"], limit=0)
+
+
+def test_search_rejects_a_negative_limit(indexed):
+    from recall.errors import InvalidLimitError
+
+    with pytest.raises(InvalidLimitError, match="-1"):
+        recall_search(query="pop-top", sources=["brain"], limit=-1)
+
+
+def test_search_rejects_a_limit_above_the_maximum(indexed):
+    from recall.errors import InvalidLimitError
+    from recall.store.pgvector import PgVectorStore
+
+    too_big = PgVectorStore.MAX_LIMIT + 1
+    with pytest.raises(InvalidLimitError, match=str(too_big)):
+        recall_search(query="pop-top", sources=["brain"], limit=too_big)
+
+
+def test_status_reports_last_indexed_per_source(indexed):
+    out = recall_status()
+    assert "last_indexed" in out
+    assert out["last_indexed"]["brain"] is not None
+    datetime.fromisoformat(out["last_indexed"]["brain"])
+
+
+def test_status_warns_when_a_registered_source_has_never_been_indexed(
+    store_factory, tmp_path, monkeypatch
+):
+    """A registered source with no chunks yet must not look silently healthy."""
+    from recall.config import Registry
+
+    store = store_factory(dim=8)
+    monkeypatch.setattr("recall.mcp_server._store", lambda: store)
+
+    root = tmp_path / "ghost"
+    root.mkdir()
+    (root / ".recall.toml").write_text('[source]\ntag = "ghost"\n')
+    Registry.load().register(root)
+
+    out = recall_status()
+    assert out["last_indexed"] == {}
+    assert any("ghost" in w and "never" in w for w in out["warnings"])
 
 
 def test_indexing_is_NOT_exposed_as_a_tool():

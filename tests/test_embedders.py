@@ -189,6 +189,100 @@ def test_build_embedder_passes_the_configured_timeout_to_openai():
     assert e._timeout == pytest.approx(42.0)
 
 
+def test_ollama_splits_an_oversized_batch_into_multiple_requests_IN_ORDER(monkeypatch):
+    """indexer.py hands the embedder up to EMBED_BATCH=64 texts in one call, and
+    embedders POST the whole list in a single HTTP request with no size cap.
+    The embedder must defend itself: split into multiple requests, but the
+    returned vectors must come back in the SAME ORDER as the input, because
+    indexer.py zips them back onto chunks with strict=True — a reordering bug
+    here would silently mis-embed every chunk indexed after this point."""
+    calls: list[list[str]] = []
+
+    def fake_post(self, url, json, **kw):
+        calls.append(list(json["input"]))
+        # Encode each input's position (via its content) into the response so
+        # we can prove order survives the round trip, not just the count.
+        vecs = [[float(len(text))] for text in json["input"]]
+        return httpx.Response(200, json={"embeddings": vecs}, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx.Client, "post", fake_post)
+
+    e = OllamaEmbedder(model="nomic-embed-text", endpoint="http://x", max_batch_items=2)
+    texts = ["a", "bb", "ccc", "dddd", "e"]
+    vecs = e.embed_documents(texts)
+
+    # Split into ceil(5/2) = 3 requests.
+    assert len(calls) == 3
+    assert [len(c) for c in calls] == [2, 2, 1]
+
+    # Order preserved end to end: prefixed input length still encodes position.
+    prefix_len = len("search_document: ")
+    assert [int(v[0]) - prefix_len for v in vecs] == [len(t) for t in texts]
+
+
+def test_openai_splits_an_oversized_batch_into_multiple_requests_IN_ORDER(monkeypatch):
+    calls: list[list[str]] = []
+
+    def fake_post(self, url, headers, json, **kw):
+        calls.append(list(json["input"]))
+        base = sum(len(c) for c in calls[:-1])
+        data = [
+            {"index": base + i, "embedding": [float(base + i)] * 4}
+            for i in range(len(json["input"]))
+        ]
+        return httpx.Response(200, json={"data": data}, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx.Client, "post", fake_post)
+
+    e = OpenAIEmbedder(model="text-embedding-3-small", api_key="sk-test", max_batch_items=2)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        vecs = e.embed_documents(["a", "b", "c", "d", "e"])
+
+    assert len(calls) == 3
+    assert [len(c) for c in calls] == [2, 2, 1]
+    assert vecs == [[0.0] * 4, [1.0] * 4, [2.0] * 4, [3.0] * 4, [4.0] * 4]
+
+
+def test_ollama_oversize_rejection_is_a_distinct_actionable_error(monkeypatch):
+    """A 400/413 from the backend means the request itself was rejected as too
+    large — a different problem from 'cannot reach the endpoint', and it needs
+    a different, actionable message (not 'is it running? ollama serve')."""
+    from recall.embedders import EmbedderRequestRejectedError
+
+    def too_big(self, url, json, **kw):
+        return httpx.Response(
+            413,
+            json={"error": "request too large"},
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(httpx.Client, "post", too_big)
+    e = OllamaEmbedder(model="nomic-embed-text", endpoint="http://x")
+    with pytest.raises(EmbedderRequestRejectedError) as exc:
+        e.embed_query("x")
+    msg = str(exc.value)
+    assert "413" in msg or "too large" in msg.lower()
+    # Must not be raised as the generic unreachable error too (subclass check).
+    assert not isinstance(exc.value, EmbedderUnreachableError)
+
+
+def test_openai_oversize_rejection_is_a_distinct_actionable_error(monkeypatch):
+    from recall.embedders import EmbedderRequestRejectedError
+
+    def too_big(self, url, headers, json, **kw):
+        return httpx.Response(
+            400,
+            json={"error": {"message": "array too large"}},
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(httpx.Client, "post", too_big)
+    e = OpenAIEmbedder(model="text-embedding-3-small", api_key="sk-test")
+    with pytest.raises(EmbedderRequestRejectedError):
+        e.embed_query("x")
+
+
 @pytest.mark.ollama
 def test_REAL_ollama_returns_768_dimensions():
     """Integration. Requires a live Ollama with nomic-embed-text pulled."""

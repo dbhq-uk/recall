@@ -126,3 +126,63 @@ def test_dispatch_routes_unknown_extensions_to_line_windows():
     chunks = chunk_file("plain text here\n" * 100, source="s", rel_path="a.log", file_sha="x")
     assert len(chunks) >= 1
     assert chunks[0].context is None
+
+
+def test_missing_grammar_falls_back_and_flags_the_fallback():
+    """A language recognised by LANG_BY_EXT but with no installed tree-sitter
+    grammar must still get SOME chunking (line windows) but the caller must be
+    told this happened — the whole point of the honesty rule."""
+    src = "\n".join(f"line {i}" for i in range(80))
+    chunks = chunk_code(src, lang="not-a-real-language", **KW)
+    assert chunks.fell_back is True
+    assert len(chunks) >= 1
+
+
+def test_supported_grammar_parse_does_not_flag_a_fallback():
+    chunks = chunk_code("def f():\n    return 1\n", lang="python", **KW)
+    assert chunks.fell_back is False
+
+
+def test_a_file_with_no_definitions_is_NOT_flagged_as_a_grammar_fallback():
+    """chunk_code's second fallback (spans-less -> chunk_text) is a legitimate
+    'this file has no functions/classes' case (e.g. a constants module), not a
+    degradation. Only the tree-sitter-unavailable path counts."""
+    chunks = chunk_code("CONFIG = {'a': 1}\n", lang="python", **KW)
+    assert chunks.fell_back is False
+
+
+def test_missing_grammar_pack_falls_back_rather_than_raising_NameError(monkeypatch):
+    """The pack not being installed at all must reach the line-window fallback.
+
+    Naming the pack's own exception class in the `except` tuple is a trap: if
+    the import that binds that name is the thing that failed, evaluating the
+    tuple raises NameError and the fallback never runs — so the one environment
+    the fallback exists for (no grammar pack, e.g. Windows) is the one where it
+    breaks. Setting sys.modules[...] = None is the standard way to make an
+    import genuinely fail without uninstalling anything.
+    """
+    import sys
+
+    monkeypatch.setitem(sys.modules, "tree_sitter_language_pack", None)
+    chunks = chunk_code(
+        "def f():\n    return 1\n", source="s", rel_path="a.py", file_sha="x", lang="python"
+    )
+    assert chunks.fell_back is True
+    assert len(chunks) > 0
+
+
+def test_a_genuine_parser_crash_on_a_supported_grammar_is_not_swallowed(monkeypatch):
+    """The bug this whole task exists to fix: a bare `except Exception` hid real
+    tree-sitter crashes on supported languages behind a silent line-window
+    fallback. Only 'grammar unavailable' conditions may be caught."""
+    import tree_sitter_language_pack
+
+    def boom(name):
+        raise RuntimeError("simulated parser crash, not a missing-grammar condition")
+
+    monkeypatch.setattr(tree_sitter_language_pack, "get_parser", boom)
+
+    import pytest
+
+    with pytest.raises(RuntimeError):
+        chunk_code("def f():\n    return 1\n", lang="python", **KW)

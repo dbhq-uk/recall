@@ -55,18 +55,19 @@ working.
 We evaluated recall against [BEIR](https://github.com/beir-cellar/beir), the
 standard information-retrieval benchmark, using BEIR's own published
 baselines. These are external, un-authored corpora and query sets — nobody
-here wrote the questions or the relevance labels.
+here wrote the questions or the relevance labels. Each corpus is indexed
+**on its own** (see the methodology note below — this matters).
 
 **BEIR SciFact** (5,183 documents, 300 expert-labelled queries), NDCG@10:
 
 | system | NDCG@10 |
 |---|---:|
-| **recall (hybrid)** | **0.711** |
-| recall (dense only) | 0.700 |
+| **recall (hybrid)** | **0.715** |
+| recall (dense only) | 0.704 |
 | ColBERT (published) | 0.671 |
 | BM25 (published) | 0.665 |
+| recall (lexical only) | 0.645 |
 | TAS-B (published) | 0.643 |
-| recall (lexical only) | 0.639 |
 | ANCE (published) | 0.507 |
 | DPR (published) | 0.318 |
 
@@ -74,25 +75,35 @@ here wrote the questions or the relevance labels.
 
 | system | NDCG@10 |
 |---|---:|
-| **recall (hybrid)** | **0.339** |
+| **recall (hybrid)** | **0.348** |
+| recall (dense only) | 0.338 |
 | BM25 (published) | 0.325 |
-| recall (dense only) | 0.320 |
 | TAS-B (published) | 0.319 |
 | ColBERT (published) | 0.305 |
-| recall (lexical only) | 0.303 |
+| recall (lexical only) | 0.298 |
 | ANCE (published) | 0.237 |
 | DPR (published) | 0.189 |
 
-**Fusion beats both halves on both datasets** — SciFact 0.711 > 0.700 >
-0.639, NFCorpus 0.339 > 0.320 > 0.303 — and recall's hybrid beats the
-published BM25 baseline on both (+0.046 on SciFact, +0.014 on NFCorpus).
+**Fusion beats both halves on both datasets** — SciFact 0.715 > 0.704 >
+0.645, NFCorpus 0.348 > 0.338 > 0.298 — and recall's hybrid beats the
+published BM25 baseline on both (+0.050 on SciFact, +0.023 on NFCorpus).
 
-Two honest caveats:
+Three honest caveats:
 
+- **Each corpus is indexed on its own.** ParadeDB `pg_search` computes BM25
+  statistics (IDF, average document length) over the *entire* index; a
+  `WHERE source = ...` filter selects which rows are returned but **not**
+  which corpus the statistics are drawn from. So scoring SciFact while it
+  shares a database with other corpora would let those corpora's vocabulary
+  shape SciFact's BM25 scores — which BEIR, where the index *is* the corpus,
+  does not intend. An earlier version of these numbers was measured on a
+  shared index and was therefore slightly off (e.g. NFCorpus lexical read
+  0.303 shared vs 0.298 isolated). The numbers above are each from a
+  single-corpus index. If you reproduce them, index one corpus per database.
 - BEIR documents are short abstracts (about 1.1 chunks per document), so
   this validates recall's **ranking and fusion**, not its chunking. Chunking
   quality is a separate, harder-to-benchmark question.
-- Our lexical arm lands within −0.026 (SciFact) / −0.022 (NFCorpus) of
+- Our lexical arm lands within −0.020 (SciFact) / −0.027 (NFCorpus) of
   published BM25 — inside the ±0.05 band that Kamalloo et al. (SIGIR 2024)
   attribute to ordinary index-configuration differences. In other words, our
   BM25 reproduces the reference implementation; it is not a weaker imitation

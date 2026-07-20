@@ -5,12 +5,22 @@ import warnings
 
 import httpx
 
+from recall.embedders import (
+    DEFAULT_MAX_BATCH_CHARS,
+    DEFAULT_MAX_BATCH_ITEMS,
+    EmbedderRequestRejectedError,
+    batch_by_size,
+)
 from recall.errors import EmbedderUnreachableError
 
 KNOWN_DIMS = {
     "text-embedding-3-small": 1536,
     "text-embedding-3-large": 3072,
 }
+
+# Same split as ollama.py: 400/413/422 means the request was rejected outright
+# (too large / malformed), distinct from any other failure to reach the API.
+_REJECTED_STATUSES = {400, 413, 422}
 
 
 class OpenAIEmbedder:
@@ -27,6 +37,8 @@ class OpenAIEmbedder:
         api_key: str | None = None,
         endpoint: str = "https://api.openai.com/v1",
         timeout: float = 60.0,
+        max_batch_items: int = DEFAULT_MAX_BATCH_ITEMS,
+        max_batch_chars: int = DEFAULT_MAX_BATCH_CHARS,
     ) -> None:
         self.model = model
         self.name = f"openai:{model}"
@@ -35,6 +47,8 @@ class OpenAIEmbedder:
         self._api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
         self._timeout = timeout
         self._warned_off_machine = False
+        self._max_batch_items = max_batch_items
+        self._max_batch_chars = max_batch_chars
 
     def _embed(self, inputs: list[str]) -> list[list[float]]:
         if not self._api_key:
@@ -63,6 +77,16 @@ class OpenAIEmbedder:
                 f"recall will not fall back to a different model."
             ) from exc
 
+        if response.status_code in _REJECTED_STATUSES:
+            raise EmbedderRequestRejectedError(
+                f"OpenAI rejected the request as too large or malformed "
+                f"({response.status_code}): {response.text.strip()}\n"
+                f"recall already splits large indexing batches, but this request "
+                f"still exceeded a limit (OpenAI caps /embeddings at 2048 items and "
+                f"a total-token budget per request). If this recurs, lower the "
+                f"embedder's max_batch_items / max_batch_chars."
+            )
+
         if response.status_code != 200:
             raise EmbedderUnreachableError(
                 f"OpenAI returned {response.status_code}: {response.text.strip()}"
@@ -72,7 +96,12 @@ class OpenAIEmbedder:
         return [d["embedding"] for d in data]
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        return self._embed(texts) if texts else []
+        if not texts:
+            return []
+        vectors: list[list[float]] = []
+        for batch in batch_by_size(texts, self._max_batch_items, self._max_batch_chars):
+            vectors.extend(self._embed(batch))
+        return vectors
 
     def embed_query(self, text: str) -> list[float]:
         return self._embed([text])[0]

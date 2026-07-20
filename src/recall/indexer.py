@@ -20,6 +20,12 @@ class IndexReport:
     files_skipped: int
     files_pruned: int
     chunks_written: int
+    # Files where tree-sitter chunking degraded to line-window chunking because
+    # no grammar was available (missing pack, unsupported language). Distinct
+    # from "no definitions found" (a legitimately correct line-window choice,
+    # not a degradation) — see chunk_code's own comment for the split. Every
+    # degradation must be reported in-band, per the project's honesty rule.
+    files_fallback_chunked: int = 0
 
 
 def index_source(
@@ -45,7 +51,7 @@ def index_source(
     known = {} if force else store.file_shas(tag)
 
     seen: set[str] = set()
-    indexed = skipped = chunks_written = 0
+    indexed = skipped = chunks_written = fallback_chunked = 0
     pending: list[Chunk] = []
 
     def flush() -> int:
@@ -88,6 +94,8 @@ def index_source(
             text, source=tag, rel_path=walked.rel_path, file_sha=walked.file_sha
         )
         indexed += 1
+        if getattr(file_chunks, "fell_back", False):
+            fallback_chunked += 1
 
         for chunk in file_chunks:
             pending.append(chunk)
@@ -107,4 +115,5 @@ def index_source(
         files_skipped=skipped,
         files_pruned=pruned_files,
         chunks_written=chunks_written,
+        files_fallback_chunked=fallback_chunked,
     )

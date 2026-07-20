@@ -47,3 +47,25 @@ class DimensionMismatchError(RecallError):
 
 class StoreNotInitialisedError(RecallError):
     """The database has no recall schema yet. Run: recall init"""
+
+
+class InvalidLimitError(RecallError):
+    """`limit` failed validation at the MCP or store boundary.
+
+    limit=0 used to silently return zero results — indistinguishable from "no
+    matches" to a caller. A negative limit reached raw SQL and raised an
+    opaque psycopg error instead of a recall error. Both are exactly the kind
+    of silent/opaque failure this product exists to prevent, so we validate
+    at the boundary and name the bad value and the fix.
+    """
+
+    def __init__(self, limit: int, maximum: int) -> None:
+        if limit > maximum:
+            reason = f"exceeds the maximum of {maximum}"
+        else:
+            reason = "must be a positive integer"
+        super().__init__(
+            f"Invalid limit {limit!r}: {reason}. Pass a limit between 1 and {maximum}."
+        )
+        self.limit = limit
+        self.maximum = maximum
