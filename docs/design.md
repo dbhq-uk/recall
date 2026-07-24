@@ -455,6 +455,46 @@ recorded here rather than quietly averaged away. The honest reading: on a
 small, semantic-skewed, self-authored fixture, a strong dense retriever is
 hard to improve on by fusing a weak lexical half into it.
 
+### Lexical field folds in the heading/symbol context *(21 July 2026)*
+
+The dense side has always embedded `context + "\n\n" + content` (the heading
+trail for prose, the symbol name for code), but the lexical side indexed
+`content` alone. So a term appearing *only* in a heading was dense-findable and
+invisible to BM25/ts_rank_cd — an asymmetry between the two halves. The `chunks`
+table now carries a generated `search_text = coalesce(context,'') || content`
+column; both the pg_search bm25 index and the ts_rank_cd `tsv` derive from it,
+so the two rankers stay in lockstep. (Postgres forbids a generated column
+referencing another generated column, so `tsv` rebuilds the expression rather
+than pointing at `search_text`.) `SCHEMA_VERSION` is bumped to `2`; existing
+databases need a `recall reindex` to populate the column.
+
+The original golden set could not see the change: it had no query whose term
+lived only in a heading, so the enrichment had nothing to bite on and the
+measured deltas sat inside the noise. So the fixture gained four **heading-only
+lexical probes** (q041–q044): each target file carries an invented codeword on a
+single heading and nowhere in its body, and the query leans only on that codeword
+(`tests/test_golden_set.py` enforces both — the codeword is heading-resident and
+the query shares no body word, so a content-only lexical half genuinely cannot
+match). They are the fixture's regression guard for this fix: revert `search_text`
+and all four go from rank 1 to unretrievable.
+
+Measured before/after on the fixture (`w_dense=0.7 / w_lexical=0.3`, k=10), full
+reindex each side, with the four probes present:
+
+| arm | Recall@10 | MRR |
+|---|---|---|
+| lexical (content only, before) | 0.659 | 0.463 |
+| lexical (search_text, after) | **0.750** | **0.553** |
+| lexical *kind* bucket, before → after | 0.789 → **1.000** | 0.566 → **0.789** |
+
+Dense is unchanged (0.909) and the four probes move MISS → rank 1 on lexical-only.
+The gain is real but specific: it appears exactly where a distinctive term lives
+only in a heading. On ordinary prose queries, whose terms recur in the body, the
+change is neutral — as expected. The mechanism is also covered by
+`tests/test_store_search.py` (both ranker paths). The idea — building the lexical
+search text from the heading/section context, not the body alone — is common
+prior art in hybrid-retrieval systems.
+
 ## Open questions
 
 - **Fusion's value is corpus-dependent and we should say so.** It wins on BEIR, loses on our fixture. The open question is not "is RRF good" but "for which query distributions does the lexical half add signal rather than noise" — per-query adaptive weighting is the literature's answer and is unbuilt here.
