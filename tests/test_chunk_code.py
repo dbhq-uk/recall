@@ -171,6 +171,27 @@ def test_missing_grammar_pack_falls_back_rather_than_raising_NameError(monkeypat
     assert len(chunks) > 0
 
 
+def test_oversized_code_windows_follow_the_module_constants(monkeypatch):
+    """_window_if_oversized must honour CODE_WINDOW_LINES / CODE_OVERLAP_LINES,
+    not hard-coded literals. Regression guard: the literals happened to equal the
+    constants, so a test that only checks the default values could never catch a
+    divergence. Patch the constants and prove the windowing follows them."""
+    import recall.chunkers.code as code_mod
+
+    monkeypatch.setattr(code_mod, "CODE_WINDOW_LINES", 20)
+    monkeypatch.setattr(code_mod, "CODE_OVERLAP_LINES", 5)
+
+    # >MAX_CHUNK_CHARS (2000) so the oversize path triggers; known line count.
+    body = "\n".join(f"variable_number_{i} = {i}" for i in range(200))
+    parts = code_mod._window_if_oversized(body)
+
+    first = parts[0].splitlines()
+    second = parts[1].splitlines()
+    assert len(first) == 20, "window size must track CODE_WINDOW_LINES"
+    # step = window - overlap = 15, so the last 5 lines of part 0 reappear in part 1.
+    assert first[-5:] == second[:5], "overlap must track CODE_OVERLAP_LINES"
+
+
 def test_a_genuine_parser_crash_on_a_supported_grammar_is_not_swallowed(monkeypatch):
     """The bug this whole task exists to fix: a bare `except Exception` hid real
     tree-sitter crashes on supported languages behind a silent line-window
