@@ -44,6 +44,39 @@ def corpus(store_factory):
     return _load
 
 
+# --- heading/symbol context is lexically searchable --------------------------
+# The heading trail (prose) or symbol name (code) is folded into the lexical
+# field, not just the embedding — otherwise a term that appears only in a heading
+# is dense-findable but invisible to BM25/ts_rank_cd. Distinctive term in the
+# context, absent from the body: it must still be retrievable by the lexical half.
+
+
+def _heading_only_chunk() -> Chunk:
+    return Chunk(
+        source="brain",
+        rel_path="doc.md",
+        chunk_idx=0,
+        content="the body mentions nothing distinctive at all",
+        context="Zorblax Configuration",
+        lang="markdown",
+        file_sha="sha",
+        embedding=vec(1, 0, 0),
+    )
+
+
+@requires_pg_search
+def test_heading_context_is_lexically_searchable_with_bm25(store_factory):
+    store = store_factory(dim=DIM, pg_search_enabled=True)
+    store.upsert([_heading_only_chunk()])
+    assert "doc.md" in store.search_lexical_only("Zorblax", ["brain"], limit=10)
+
+
+def test_heading_context_is_lexically_searchable_with_ts_rank_cd(store_factory):
+    store = store_factory(dim=DIM, pg_search_enabled=False)
+    store.upsert([_heading_only_chunk()])
+    assert "doc.md" in store.search_lexical_only("Zorblax", ["brain"], limit=10)
+
+
 # --- both ranker paths -------------------------------------------------------
 
 

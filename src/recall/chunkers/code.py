@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from recall.chunkers import MAX_CHUNK_CHARS
+from recall.chunkers import CODE_OVERLAP_LINES, CODE_WINDOW_LINES, MAX_CHUNK_CHARS
 from recall.chunkers.text import chunk_text
 from recall.models import Chunk
 
@@ -205,11 +205,11 @@ def _window_if_oversized(body: str) -> list[str]:
         return [body]
     lines = body.splitlines()
     out: list[str] = []
-    step = max(1, 60 - 10)
+    step = max(1, CODE_WINDOW_LINES - CODE_OVERLAP_LINES)
     for start in range(0, len(lines), step):
-        part = "\n".join(lines[start : start + 60]).strip()
+        part = "\n".join(lines[start : start + CODE_WINDOW_LINES]).strip()
         if part:
             out.append(part)
-        if start + 60 >= len(lines):
+        if start + CODE_WINDOW_LINES >= len(lines):
             break
     return out

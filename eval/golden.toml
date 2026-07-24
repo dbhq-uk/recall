@@ -304,3 +304,40 @@ id = "q040"
 text = "how Sarpo Mira held up against the 2023 blight compared with Charlotte"
 kind = "hybrid"
 relevant = ["kb/allotment-plot-14b.md"]
+
+# ---------------------------------------------------------------------------
+# heading-only lexical (4) - the discriminating identifier lives ONLY in a
+# heading of the target, never in its body. The markdown chunker folds the
+# heading trail into `context`, not `content`, so before search_text existed
+# the lexical half indexed `content` alone and could not see these terms at
+# all: they scored 0 on lexical-only while dense (which embeds context) found
+# them. They are the fixture's regression guard for the dense/lexical
+# asymmetry fix - delete search_text and the lexical arm's recall drops here.
+# Each codeword is invented and unique, so it needs no distractors to be
+# discriminating; the QUESTION around it keeps them from being bare lookups.
+# See docs/design.md ("Lexical field folds in the heading/symbol context").
+# ---------------------------------------------------------------------------
+
+[[query]]
+id = "q041"
+text = "what is FROSTGATE_PIVOT"
+kind = "lexical"
+relevant = ["architecture/failover-runbook.md"]
+
+[[query]]
+id = "q042"
+text = "what is PALEGATE_SWEEP"
+kind = "lexical"
+relevant = ["business/ops/access-review-runbook.md"]
+
+[[query]]
+id = "q043"
+text = "what is EMBERWATCH"
+kind = "lexical"
+relevant = ["kb/greenhouse-heater-protocol.md"]
+
+[[query]]
+id = "q044"
+text = "what is AMPGATE_CHECK"
+kind = "lexical"
+relevant = ["travel/van/electrical-audit.md"]

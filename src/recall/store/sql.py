@@ -17,7 +17,7 @@ IR literature (Elastic's weighted-RRF write-up; alpha typically 0.3-0.7). See
 eval/harness.py and docs/design.md for the measured comparison.
 """
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 
 CREATE_VECTOR_EXTENSION = "CREATE EXTENSION IF NOT EXISTS vector"
 CREATE_PG_SEARCH_EXTENSION = "CREATE EXTENSION IF NOT EXISTS pg_search"
@@ -42,7 +42,16 @@ CREATE TABLE IF NOT EXISTS chunks (
   lang       TEXT,
   file_sha   TEXT NOT NULL,
   embedding  VECTOR({dim}) NOT NULL,
-  tsv        TSVECTOR GENERATED ALWAYS AS (to_tsvector('english', content)) STORED,
+  -- The lexical field folds the heading trail / symbol name into the searchable
+  -- text, exactly as Chunk.embed_text does for the dense side. Without this a
+  -- term that appears only in a heading ("## Retry policy > Backoff") is
+  -- dense-findable but invisible to BM25/ts_rank_cd — an asymmetry between the
+  -- two halves of the hybrid. Postgres forbids a generated column referencing
+  -- another generated column, so tsv derives from the same base expression
+  -- rather than from search_text.
+  search_text TEXT GENERATED ALWAYS AS (coalesce(context, '') || E'\n\n' || content) STORED,
+  tsv        TSVECTOR GENERATED ALWAYS AS
+             (to_tsvector('english', coalesce(context, '') || E'\n\n' || content)) STORED,
   indexed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (source, rel_path, chunk_idx)
 )
@@ -60,7 +69,7 @@ CREATE_INDEXES = [
 # because it IS the fallback.
 CREATE_BM25_INDEX = """
 CREATE INDEX IF NOT EXISTS chunks_bm25_idx
-ON chunks USING bm25 (id, source, content)
+ON chunks USING bm25 (id, source, search_text)
 WITH (key_field='id')
 """
 
@@ -98,7 +107,7 @@ lexical AS (
   SELECT id, ROW_NUMBER() OVER (ORDER BY paradedb.score(id) DESC) AS rank
   FROM chunks
   WHERE source = ANY(%(sources)s)
-    AND id @@@ paradedb.match('content', %(qtext)s)
+    AND id @@@ paradedb.match('search_text', %(qtext)s)
   ORDER BY paradedb.score(id) DESC
   LIMIT %(pool)s
 )
@@ -158,7 +167,7 @@ SEARCH_LEXICAL_ONLY_BM25 = """
 SELECT rel_path
 FROM chunks
 WHERE source = ANY(%(sources)s)
-  AND id @@@ paradedb.match('content', %(qtext)s)
+  AND id @@@ paradedb.match('search_text', %(qtext)s)
 ORDER BY paradedb.score(id) DESC
 LIMIT %(limit)s
 """
