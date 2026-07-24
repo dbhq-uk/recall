@@ -141,7 +141,8 @@ def test_heading_only_probes_share_no_body_word_with_their_query(golden):
     for qid in _HEADING_ONLY_PROBES:
         q = by_id[qid]
         (rel,) = q["relevant"]
-        chunks = chunk_file((FIXTURE / rel).read_text(), source="fixture", rel_path=rel, file_sha="s")
+        text = (FIXTURE / rel).read_text()
+        chunks = chunk_file(text, source="fixture", rel_path=rel, file_sha="s")
         body_words = _words(" ".join(c.content for c in chunks))
         overlap = _words(q["text"]) & body_words
         assert overlap == set(), (
