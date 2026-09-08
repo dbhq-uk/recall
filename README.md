@@ -27,6 +27,23 @@ Local-first &nbsp;·&nbsp; tag-addressed corpora &nbsp;·&nbsp; honest about eve
 
 ---
 
+> ## Deprecated and no longer maintained
+>
+> **recall is retired as of 8 September 2026, and this repository is archived.**
+> It is read-only: no further releases, fixes or security updates, and issues
+> and pull requests are closed.
+>
+> Nothing here is broken - v1 works as described below, the tests pass, and the
+> MIT licence is unchanged, so you are free to fork it and carry on. It is
+> retired because it is not what DBHQ is putting its time into, and a public
+> repo that looks maintained but is not is worse than one that says so.
+>
+> Free, maintained DBHQ tools and agent skills are at
+> [dbhq.uk/tools](https://dbhq.uk/tools/), [dbhq.uk/skills](https://dbhq.uk/skills/)
+> and [github.com/dbhq-uk](https://github.com/dbhq-uk).
+
+---
+
 ## What recall is
 
 recall is a local-first hybrid retrieval server. It indexes your notes and
